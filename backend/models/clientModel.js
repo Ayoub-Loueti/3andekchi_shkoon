@@ -32,6 +32,14 @@ const clientSchema = new mongoose.Schema({
       type: Date,
       defaultValue: null,
     },
+    isBlocked: { 
+    type: Boolean, 
+    default: false 
+},
+  isArchived: { 
+    type: Boolean, 
+    default: false 
+},
 }, {
   timestamps: true 
 });

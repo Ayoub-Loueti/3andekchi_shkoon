@@ -10,4 +10,11 @@ router.post('/check-reset-token', utilisateurController.checkResetToken);
 router.post('/reset-password/:token', utilisateurController.resetPassword);
 router.post('/resend-forgot-password-email/:mail',utilisateurController.resendForgotPasswordEmail);
 
+router.get('/clients', utilisateurController.getClients);
+router.put('/clients/:id/block', utilisateurController.blockClient);
+router.put('/clients/:id/unblock', utilisateurController.unblockClient);
+router.put('/clients/:id/archive', utilisateurController.archiveClient);
+router.put('/clients/:id/unarchive', utilisateurController.unarchiveClient);
+router.put('/clients/:id', utilisateurController.updateClient);
+
 module.exports = router;

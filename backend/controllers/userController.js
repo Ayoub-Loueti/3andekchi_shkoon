@@ -236,4 +236,127 @@ exports.resendForgotPasswordEmail = async (req, res) => {
   }
 };
 
+exports.getClients = async (req, res) => {
+  try {
+    const clients = await Client.find({ isArchived: false }); // 👈 Ne récupérer que les non archivés
+
+    if (!clients || clients.length === 0) {
+      return res.status(404).json({ message: 'Aucun client trouvé.' });
+    }
+
+    const clientList = clients.map(client => ({
+      _id: client._id,
+      nom: client.nom,
+      prenom: client.prenom,
+      mail: client.mail,
+      numero: client.numero,
+      rate: client.rate,
+      isBlocked: client.isBlocked
+    }));
+
+    res.status(200).json(clientList);
+  } catch (error) {
+    res.status(500).json({ message: 'Erreur serveur.' });
+  }
+};
+exports.archiveClient = async (req, res) => {
+  try {
+    const client = await Client.findById(req.params.id);
+    if (!client) return res.status(404).json({ message: 'Client non trouvé.' });
+
+    client.isArchived = true;
+    await client.save();
+
+    res.status(200).json({ message: 'Client archivé avec succès.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Erreur serveur.' });
+  }
+};
+
+exports.unarchiveClient = async (req, res) => {
+  try {
+    const client = await Client.findById(req.params.id);
+    if (!client) return res.status(404).json({ message: 'Client non trouvé.' });
+
+    client.isArchived = false;
+    await client.save();
+
+    res.status(200).json({ message: 'Client désarchivé avec succès.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Erreur serveur.' });
+  }
+};
+exports.blockClient = async (req, res) => {
+  try {
+    const client = await Client.findById(req.params.id);
+
+    if (!client) {
+      return res.status(404).json({ message: 'Client non trouvé.' });
+    }
+
+    client.isBlocked = true;
+    await client.save();
+
+    res.status(200).json({ message: 'Client bloqué avec succès.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Erreur serveur.' });
+  }
+};
+
+exports.unblockClient = async (req, res) => {
+  try {
+    const client = await Client.findById(req.params.id);
+
+    if (!client) {
+      return res.status(404).json({ message: 'Client non trouvé.' });
+    }
+
+    client.isBlocked = false;
+    await client.save();
+
+    res.status(200).json({ message: 'Client débloqué avec succès.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Erreur serveur.' });
+  }
+};
+
+exports.updateClient = async (req, res) => {
+  const clientId = req.params.id;
+  const { nom, prenom, mail, numero, password } = req.body;
+
+  try {
+    const client = await Client.findById(clientId);
+
+    if (!client) {
+      return res.status(404).json({ message: 'Client non trouvé.' });
+    }
+
+    if (nom) client.nom = nom;
+    if (prenom) client.prenom = prenom;
+    if (mail) client.mail = mail;
+    if (numero) client.numero = numero;
+
+    if (password) {
+      const salt = await bcrypt.genSalt(10);
+      client.password = await bcrypt.hash(password, salt);
+    }
+
+    await client.save();
+
+    res.status(200).json({
+      message: 'Compte mis à jour avec succès.',
+      client: {
+        _id: client._id,
+        nom: client.nom,
+        prenom: client.prenom,
+        mail: client.mail,
+        numero: client.numero,
+        rate: client.rate,
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Erreur serveur.' });
+  }
+};
+
 module.exports = exports;
