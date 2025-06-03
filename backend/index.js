@@ -1,8 +1,8 @@
+require('dotenv').config();
+
 const express = require('express');
 const connectDB = require('./config/db');
-const userRoutes = require('./routes/userRoute'); 
-
-require('dotenv').config();
+const userRoutes = require('./routes/userRoute'); // Import user routes
 
 connectDB();
 const app = express();

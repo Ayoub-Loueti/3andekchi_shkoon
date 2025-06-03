@@ -25,6 +25,13 @@ const clientSchema = new mongoose.Schema({
     type: String,
     required: true 
   },
+  resetPasswordToken: {
+      type: String,
+    },
+    resetPasswordExpires: {
+      type: Date,
+      defaultValue: null,
+    },
 }, {
   timestamps: true 
 });

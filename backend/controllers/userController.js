@@ -1,17 +1,26 @@
-const Client = require('../models/clientModel');
+const Utilisateur = require('../models/clientModel');
 const bcrypt = require('bcryptjs');
+const nodemailer = require('nodemailer');
+const jwt = require('jsonwebtoken');
 
 exports.loginUser = async (req, res) => {
-  const { mail, password } = req.body;
+  const { mail, password, remember } = req.body;
 
-  const client = await Client.findOne({ mail });
+  const client = await Utilisateur.findOne({ mail });
 
   if (client && (await bcrypt.compare(password, client.password))) {
+    const token = jwt.sign(
+      { id: client._id },
+      process.env.JWT_KEY,
+      { expiresIn: remember ? '30d' : '48h' }
+    );
+
     res.json({
       _id: client._id,
       nom: client.nom,
       prenom: client.prenom,
       mail: client.mail,
+      token: token,
     });
   } else {
     res.status(400).json({ message: 'client existe pas' });
@@ -21,17 +30,17 @@ exports.loginUser = async (req, res) => {
 exports.signupUser = async (req, res) => {
   const { nom, prenom, mail, numero, rate, password } = req.body;
 
-  const userExists = await Client.findOne({ mail });
+  const userExists = await Utilisateur.findOne({ mail });
 
   if (userExists) {
     res.status(400).json({ message: 'user existe deja' });
-    return; 
+    return;
   }
 
   const salt = await bcrypt.genSalt(10);
   const hashedPassword = await bcrypt.hash(password, salt);
 
-  const client = await Client.create({
+  const client = await Utilisateur.create({
     nom,
     prenom,
     mail,
@@ -51,6 +60,179 @@ exports.signupUser = async (req, res) => {
     });
   } else {
     res.status(400).json({ message: 'invalide user' });
+  }
+};
+
+const FROM_EMAIL = process.env.MAILER_EMAIL_ID;
+const AUTH_PASSWORD = process.env.MAILER_PASSWORD;
+
+const API_ENDPOINT =
+  process.env.NODE_ENV === 'production'
+    ? process.env.PRODUCTION_API_URL
+    : process.env.DEVELOPMENT_API_URL;
+
+const smtpTransport = nodemailer.createTransport({
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true,
+  service: 'gmail',
+  auth: {
+    user: FROM_EMAIL,
+    pass: AUTH_PASSWORD,
+  },
+});
+
+const {
+  signUpConfirmationEmailTemplate,
+  forgotPasswordEmailTemplate,
+  resetPasswordConfirmationEmailTemplate,
+} = require('../template/userAccountEmailTemplates');
+
+exports.forgotPassword = async (req, res) => {
+  try {
+    const user = await Utilisateur.findOne({ mail: req.body.mail });
+
+    if (!user) {
+      return res.status(404).json({ message: 'Utilisateur non trouvé.' });
+    }
+/*
+    if (user.etat !== 'autorise') {
+      return res.status(403).json({ message: 'Votre compte doit être autorisé pour réinitialiser le mot de passe.' });
+    }
+
+    if (!user.password || user.password.trim() === '') {
+      return res.status(400).json({ message: 'Les utilisateurs qui se sont inscrits via Google doivent utiliser la réinitialisation de mot de passe de Google.' });
+    }
+*/
+    console.log(user);
+    const token = Math.floor(1000 + Math.random() * 9000);
+
+    await Utilisateur.findOneAndUpdate(
+      { _id: user._id },
+      {
+        resetPasswordToken: token,
+        resetPasswordExpires: new Date(Date.now() + 3600000),
+      }
+    );
+
+    const template = forgotPasswordEmailTemplate(user.nom, user.mail, API_ENDPOINT, token);
+
+    const data = {
+      from: FROM_EMAIL,
+      to: user.mail,
+      subject: 'Réinitialisation de votre mot de passe',
+      html: template,
+    };
+
+    await smtpTransport.sendMail(data);
+
+    return res.json({
+      message: "Veuillez vérifier votre e-mail pour plus d'instructions",
+    });
+  } catch (error) {
+    console.error('Erreur dans forgotPassword:', error);
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+exports.checkResetToken = async (req, res) => {
+  try {
+    const { resetPasswordToken } = req.body;
+
+    const user = await Utilisateur.findOne({
+      resetPasswordToken: resetPasswordToken,
+      resetPasswordExpires: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        isValid: false,
+        message: 'Password reset token is invalid or has expired.',
+      });
+    }
+
+    return res.json({ isValid: true });
+  } catch (error) {
+    console.error('Erreur dans checkResetToken:', error);
+    return res.status(500).json({ isValid: false, message: error.message });
+  }
+};
+
+exports.resetPassword = async (req, res) => {
+  try {
+    const user = await Utilisateur.findOne({
+      resetPasswordToken: req.params.token,
+      resetPasswordExpires: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      return res.status(400).send({
+        message: 'Password reset token is invalid or has expired.',
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(req.body.newPassword, 10);
+
+    await Utilisateur.findOneAndUpdate(
+      { _id: user._id },
+      {
+        password: hashedPassword,
+        resetPasswordToken: null,
+        resetPasswordExpires: null,
+      }
+    );
+
+    const template = resetPasswordConfirmationEmailTemplate(user.nom);
+    const data = {
+      to: user.mail,
+      from: FROM_EMAIL,
+      subject: 'Confirmation de réinitialisation du mot de passe',
+      html: template,
+    };
+
+    await smtpTransport.sendMail(data);
+
+    return res.json({ message: 'Réinitialisation du mot de passe réussie' });
+  } catch (error) {
+    console.error('Erreur dans resetPassword:', error);
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+exports.resendForgotPasswordEmail = async (req, res) => {
+  const { mail } = req.params;
+
+  try {
+    const user = await Utilisateur.findOne({mail: mail });
+
+    if (!user) {
+      return res.status(404).json({ message: 'Utilisateur non trouvé.' });
+    }
+
+    const token = Math.floor(1000 + Math.random() * 9000);
+
+    await Utilisateur.update({
+      resetPasswordToken: token,
+      resetPasswordExpires: new Date(Date.now() + 3600000),
+    }, {
+      where: { _id: user._id }
+    });
+
+    const template = forgotPasswordEmailTemplate(user.nom, user.mail, API_ENDPOINT, token);
+    const data = {
+      from: FROM_EMAIL,
+      to: user.mail,
+      subject: 'Réinitialisation de votre mot de passe - Renvoi',
+      html: template,
+    };
+
+    await smtpTransport.sendMail(data);
+
+    return res.json({
+      message: "E-mail de réinitialisation du mot de passe renvoyé avec succès. Veuillez vérifier votre e-mail pour plus d'instructions",
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
   }
 };
 
