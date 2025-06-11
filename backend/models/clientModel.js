@@ -43,13 +43,6 @@ const clientSchema = new mongoose.Schema({
     type: Boolean, 
     default: false 
 },
-  avatar: {
-    type: String,
-  },
-  isGoogleUser: {
-    type: Boolean,
-    default: false,
-  },
 }, {
   timestamps: true 
 });
