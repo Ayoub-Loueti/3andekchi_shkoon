@@ -1,0 +1,123 @@
+import { Task, User, Chat, Message } from '../types';
+
+export const mockUsers: User[] = [
+  {
+    id: '1',
+    name: 'Ahmed Ben Ali',
+    email: 'ahmed@example.com',
+    avatar: 'https://images.pexels.com/photos/2379004/pexels-photo-2379004.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2',
+    rating: 4.8,
+    reviewCount: 24,
+    location: 'Tunis, Tunisia',
+    skills: ['Babysitting', 'Tutoring'],
+    isVerified: true,
+  },
+  {
+    id: '2',
+    name: 'Fatma Trabelsi',
+    email: 'fatma@example.com',
+    avatar: 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2',
+    rating: 4.9,
+    reviewCount: 31,
+    location: 'Sfax, Tunisia',
+    skills: ['Cleaning', 'Gardening'],
+    isVerified: true,
+  },
+  {
+    id: '3',
+    name: 'Mohamed Karray',
+    email: 'mohamed@example.com',
+    avatar: 'https://images.pexels.com/photos/1222271/pexels-photo-1222271.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2',
+    rating: 4.7,
+    reviewCount: 18,
+    location: 'Sousse, Tunisia',
+    skills: ['Repairs', 'Tech Support'],
+    isVerified: false,
+  },
+];
+
+export const mockTasks: Task[] = [
+  {
+    id: '1',
+    title: 'Need babysitter for weekend',
+    description: 'Looking for a reliable babysitter for my 5-year-old daughter this weekend. Experience with children required.',
+    category: 'babysitting',
+    budget: 50,
+    location: 'Tunis, Tunisia',
+    postedBy: mockUsers[0],
+    postedAt: new Date('2024-01-15'),
+    deadline: new Date('2024-01-20'),
+    status: 'open',
+    applicants: 3,
+    tags: ['weekend', 'children', 'experienced'],
+    images: ['https://images.pexels.com/photos/1257110/pexels-photo-1257110.jpeg?auto=compress&cs=tinysrgb&w=400'],
+  },
+  {
+    id: '2',
+    title: 'Garden maintenance needed',
+    description: 'Need someone to help with garden maintenance including pruning, weeding, and general cleanup.',
+    category: 'gardening',
+    budget: 80,
+    location: 'Sfax, Tunisia',
+    postedBy: mockUsers[1],
+    postedAt: new Date('2024-01-14'),
+    status: 'open',
+    applicants: 5,
+    tags: ['gardening', 'outdoor', 'maintenance'],
+    images: ['https://images.pexels.com/photos/1301856/pexels-photo-1301856.jpeg?auto=compress&cs=tinysrgb&w=400'],
+  },
+  {
+    id: '3',
+    title: 'Math tutoring for high school',
+    description: 'Looking for a qualified math tutor for my son who is in his final year of high school.',
+    category: 'tutoring',
+    budget: 40,
+    location: 'Tunis, Tunisia',
+    postedBy: mockUsers[2],
+    postedAt: new Date('2024-01-13'),
+    status: 'in_progress',
+    applicants: 7,
+    tags: ['math', 'tutoring', 'high school'],
+  },
+  {
+    id: '4',
+    title: 'House cleaning service',
+    description: 'Need thorough house cleaning service for a 3-bedroom apartment. Must bring own supplies.',
+    category: 'cleaning',
+    budget: 60,
+    location: 'Sousse, Tunisia',
+    postedBy: mockUsers[0],
+    postedAt: new Date('2024-01-12'),
+    status: 'open',
+    applicants: 2,
+    tags: ['cleaning', 'house', 'supplies included'],
+  },
+];
+
+export const mockMessages: Message[] = [
+  {
+    id: '1',
+    senderId: '1',
+    receiverId: '2',
+    content: 'Hi! I\'m interested in your babysitting task.',
+    timestamp: new Date('2024-01-15T10:30:00'),
+    isRead: true,
+  },
+  {
+    id: '2',
+    senderId: '2',
+    receiverId: '1',
+    content: 'Great! Can you tell me more about your experience?',
+    timestamp: new Date('2024-01-15T10:35:00'),
+    isRead: false,
+  },
+];
+
+export const mockChats: Chat[] = [
+  {
+    id: '1',
+    participants: [mockUsers[0], mockUsers[1]],
+    lastMessage: mockMessages[1],
+    unreadCount: 1,
+  },
+];

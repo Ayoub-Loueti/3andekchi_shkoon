@@ -28,7 +28,7 @@ exports.loginUser = async (req, res) => {
 };
 
 exports.signupUser = async (req, res) => {
-  const { nom, prenom, mail, numero, rate, password } = req.body;
+  const { nom, prenom, mail, numero,  password, location } = req.body;
 
   const userExists = await Utilisateur.findOne({ mail });
 
@@ -45,7 +45,7 @@ exports.signupUser = async (req, res) => {
     prenom,
     mail,
     numero,
-    rate,
+    location,
     password: hashedPassword,
   });
 
@@ -56,7 +56,7 @@ exports.signupUser = async (req, res) => {
       prenom: client.prenom,
       mail: client.mail,
       numero: client.numero,
-      rate: client.rate,
+      location: client.location,
     });
   } else {
     res.status(400).json({ message: 'invalide user' });

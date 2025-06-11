@@ -21,6 +21,9 @@ const clientSchema = new mongoose.Schema({
     type: Number,
     default: 0 
   },
+  location: {
+    type: String,
+  },
   password: {
     type: String,
     required: true 
@@ -40,6 +43,13 @@ const clientSchema = new mongoose.Schema({
     type: Boolean, 
     default: false 
 },
+  avatar: {
+    type: String,
+  },
+  isGoogleUser: {
+    type: Boolean,
+    default: false,
+  },
 }, {
   timestamps: true 
 });

@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "3andekchi Shkoon",
+    "slug": "3andekchi-shkoon",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/app-icon.png",
+    "scheme": "3andekchi-shkoon",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/images/app-icon.png"
+    },
+    "plugins": ["expo-router", "expo-font", "expo-web-browser"],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "webClientId": "133344937228-58n6t6i5jb8ufass12gqu6u578iriofb.apps.googleusercontent.com"
+    }
+  }
+}
