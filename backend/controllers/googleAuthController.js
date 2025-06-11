@@ -1,3 +1,4 @@
+/*
 const { OAuth2Client } = require('google-auth-library');
 const Utilisateur = require('../models/clientModel'); // Assuming your user model is here
 const jwt = require('jsonwebtoken'); // For generating JWTs
@@ -59,3 +60,4 @@ exports.googleLogin = async (req, res) => {
     res.status(500).json({ message: 'Google login failed', error: error.message });
   }
 }; 
+*/
