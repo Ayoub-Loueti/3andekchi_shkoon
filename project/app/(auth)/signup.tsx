@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { Link, router } from 'expo-router';
 import { Eye, EyeOff, Mail, Lock, User, Phone, MapPin, ArrowRight, Check } from 'lucide-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const colors = {
   primary: '#2A4D69',
@@ -145,35 +146,43 @@ export default function SignupScreen() {
     try {
       const response = await fetch('http://localhost:5000/users/', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify({
           nom: formData.nom,
           prenom: formData.prenom,
           mail: formData.email,
           numero: formData.phone,
           password: formData.password,
-          location: formData.location,
+          location: formData.location
         }),
       });
-      const data = await response.json();
-      setIsLoading(false);
-      if (response.ok) {
-        Alert.alert(
-          'Account Created!',
-          'Welcome to 3andekchi Shkoon! You can now start finding help or offering your services.',
-          [
-            {
-              text: 'OK',
-              onPress: () => router.replace('/(auth)/login'),
-            },
-          ]
-        );
-      } else {
-        Alert.alert('Signup Failed', data.message || 'An error occurred.');
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Registration failed');
       }
+
+      const data = await response.json();
+      
+      // Clear any existing data
+      await AsyncStorage.clear();
+      
+      // Navigate first, then show alert
+      router.replace('/(auth)/login');
+      Alert.alert(
+        'Account Created!',
+        'Welcome to 3andekchi Shkoon! You can now sign in with your account.'
+      );
     } catch (error) {
+      console.error('Registration error:', error);
+      Alert.alert(
+        'Signup Failed', 
+        error instanceof Error ? error.message : 'Network error. Please check your connection and try again.'
+      );
+    } finally {
       setIsLoading(false);
-      Alert.alert('Signup Failed', 'An error occurred.');
     }
   };
 

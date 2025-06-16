@@ -10,6 +10,7 @@ import {
   Switch,
 } from 'react-native';
 import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Settings, Star, MapPin, Calendar, Award, Shield, Bell, CreditCard, CircleHelp as HelpCircle, LogOut, CreditCard as Edit3, Camera, ChevronRight, User, Briefcase } from 'lucide-react-native';
 
 interface MenuItem {
@@ -68,16 +69,16 @@ export default function ProfileScreen() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [locationEnabled, setLocationEnabled] = useState(true);
 
-  const handleMenuItemPress = (item: MenuItem) => {
+  const handleMenuItemPress = async (item: MenuItem) => {
     if (item.action === 'edit-profile') {
       router.push('/(tabs)/edit-profile');
     } else if (item.title === 'Sign Out') {
-      // This will be handled by a specific signOut function if implemented
-      // For now, it logs to console as per the provided code structure
-      console.log('Sign Out pressed');
-      // Placeholder for actual logout logic
-      // await AsyncStorage.clear();
-      // router.replace('/(auth)/login');
+      try {
+        await AsyncStorage.clear();
+        router.replace('/(auth)/login');
+      } catch (error) {
+        console.error('Error signing out:', error);
+      }
     }
     // Handle other menu items here
   };
