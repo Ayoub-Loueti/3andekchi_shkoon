@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   SafeAreaView,
   Image,
   Switch,
+  Alert,
 } from 'react-native';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -68,6 +69,65 @@ const menuItems = [
 export default function ProfileScreen() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [locationEnabled, setLocationEnabled] = useState(true);
+  const [userInfo, setUserInfo] = useState({
+    nom: '',
+    prenom: '',
+    mail: '',
+    numero: '',
+    location: '',
+    avatar: '',
+    rate: 0,
+    createdAt: ''
+  });
+  const [isLoading, setIsLoading] = useState(true);
+
+  const getMyInfo = async () => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        router.replace('/(auth)/login');
+        return;
+      }
+
+      const response = await fetch('http://localhost:5000/users/me', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await AsyncStorage.clear();
+          router.replace('/(auth)/login');
+          return;
+        }
+        throw new Error('Failed to fetch user info');
+      }
+
+      const data = await response.json();
+      setUserInfo({
+        nom: data.nom || '',
+        prenom: data.prenom || '',
+        mail: data.mail || '',
+        numero: data.numero || '',
+        location: data.location || '',
+        avatar: data.avatar || 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=400',
+        rate: data.rate || 0,
+        createdAt: data.createdAt ? new Date(data.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'March 2024'
+      });
+    } catch (error) {
+      console.error('Error fetching user info:', error);
+      Alert.alert('Error', 'Failed to load user information');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    getMyInfo();
+  }, []);
 
   const handleMenuItemPress = async (item: MenuItem) => {
     if (item.action === 'edit-profile') {
@@ -135,8 +195,12 @@ export default function ProfileScreen() {
           <View style={styles.profileSection}>
             <View style={styles.avatarContainer}>
               <Image 
-                source={{ uri: 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=400' }} 
-                style={styles.avatar} 
+                source={{ 
+                  uri: userInfo.avatar 
+                    ? `http://localhost:5000${userInfo.avatar}`
+                    : 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=400'
+                }} 
+                style={styles.avatar}
               />
               <TouchableOpacity style={styles.cameraButton}>
                 <Camera size={16} color="white" strokeWidth={2} />
@@ -144,14 +208,14 @@ export default function ProfileScreen() {
             </View>
             
             <View style={styles.profileInfo}>
-              <Text style={styles.name}>Sarah Ben Ali</Text>
+              <Text style={styles.name}>{`${userInfo.prenom} ${userInfo.nom}`}</Text>
               <View style={styles.locationContainer}>
                 <MapPin size={14} color="#8E8E93" strokeWidth={2} />
-                <Text style={styles.location}>Tunis, Tunisia</Text>
+                <Text style={styles.location}>{userInfo.location}</Text>
               </View>
               <View style={styles.joinedContainer}>
                 <Calendar size={14} color="#8E8E93" strokeWidth={2} />
-                <Text style={styles.joined}>Joined March 2024</Text>
+                <Text style={styles.joined}>Joined {userInfo.createdAt}</Text>
               </View>
             </View>
           </View>
@@ -163,7 +227,9 @@ export default function ProfileScreen() {
                 <View style={[styles.statIcon, { backgroundColor: colors.accent + '20' }]}>
                   <stat.icon size={16} color={colors.accent} strokeWidth={2} />
                 </View>
-                <Text style={styles.statValue}>{stat.value}</Text>
+                <Text style={styles.statValue}>
+                  {stat.label === 'Rating' ? userInfo.rate.toFixed(1) : stat.value}
+                </Text>
                 <Text style={styles.statLabel}>{stat.label}</Text>
               </View>
             ))}

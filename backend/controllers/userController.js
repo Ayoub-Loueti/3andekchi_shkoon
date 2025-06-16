@@ -40,6 +40,16 @@ exports.signupUser = async (req, res) => {
   const salt = await bcrypt.genSalt(10);
   const hashedPassword = await bcrypt.hash(password, salt);
 
+  // Array of default avatars
+  const defaultAvatars = [
+    '/uploads/avatarFemme1.png',
+    '/uploads/avatarHomme1.png',
+    '/uploads/avatarHomme2.png',
+  ];
+
+  // Pick a random avatar
+  const randomAvatar = defaultAvatars[Math.floor(Math.random() * defaultAvatars.length)];
+
   const client = await Utilisateur.create({
     nom,
     prenom,
@@ -47,6 +57,7 @@ exports.signupUser = async (req, res) => {
     numero,
     location,
     password: hashedPassword,
+    avatar: randomAvatar, // Assign the random default avatar
   });
 
   if (client) {
@@ -57,6 +68,7 @@ exports.signupUser = async (req, res) => {
       mail: client.mail,
       numero: client.numero,
       location: client.location,
+      avatar: client.avatar, // Include the assigned avatar in the response
     });
   } else {
     res.status(400).json({ message: 'invalide user' });
@@ -358,5 +370,35 @@ exports.updateClient = async (req, res) => {
     res.status(500).json({ message: 'Erreur serveur.' });
   }
 };
+
+exports.getUserInfo = async (req, res) => {
+  try {
+    if (!req.user || !req.user._id) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+
+    const user = await Utilisateur.findById(req.user._id).select('-password');
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json({
+      _id: user._id,
+      nom: user.nom,
+      prenom: user.prenom,
+      mail: user.mail,
+      numero: user.numero,
+      location: user.location,
+      avatar: user.avatar,
+      rate: user.rate,
+      createdAt: user.createdAt
+    });
+  } catch (error) {
+    console.error('Error in getUserInfo:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 module.exports = exports;
 
