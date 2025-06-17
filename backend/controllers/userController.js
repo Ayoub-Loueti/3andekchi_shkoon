@@ -331,43 +331,30 @@ exports.unblockClient = async (req, res) => {
     res.status(500).json({ message: 'Erreur serveur.' });
   }
 };
-
 exports.updateClient = async (req, res) => {
-  const clientId = req.params.id;
-  const { nom, prenom, mail, numero, password } = req.body;
-
   try {
-    const client = await Client.findById(clientId);
+    console.log('PUT /users/clients/:id - Body:', req.body);
+    console.log('Client ID:', req.params.id);
+
+    const client = await Utilisateur.findByIdAndUpdate(
+      req.params.id,
+      {
+        $set: req.body,
+      },
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
 
     if (!client) {
-      return res.status(404).json({ message: 'Client non trouvé.' });
+      return res.status(404).json({ message: 'Client not found.' });
     }
 
-    if (nom) client.nom = nom;
-    if (prenom) client.prenom = prenom;
-    if (mail) client.mail = mail;
-    if (numero) client.numero = numero;
-
-    if (password) {
-      const salt = await bcrypt.genSalt(10);
-      client.password = await bcrypt.hash(password, salt);
-    }
-
-    await client.save();
-
-    res.status(200).json({
-      message: 'Compte mis à jour avec succès.',
-      client: {
-        _id: client._id,
-        nom: client.nom,
-        prenom: client.prenom,
-        mail: client.mail,
-        numero: client.numero,
-        rate: client.rate,
-      }
-    });
+    res.status(200).json(client);
   } catch (error) {
-    res.status(500).json({ message: 'Erreur serveur.' });
+    console.error('❌ Error in updateClient:', error.message);
+    res.status(500).json({ message: 'Erreur serveur.', error: error.message });
   }
 };
 

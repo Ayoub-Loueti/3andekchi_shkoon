@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
 import {
   View,
   Text,
@@ -24,13 +26,77 @@ const colors = {
   error: '#EF5350',
 };
 
+interface ProfileData {
+  firstName: string;
+  lastName: string;
+  phone: string;
+  location: string;
+}
+
+interface Errors {
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  location?: string;
+}
+
 export default function EditProfileScreen() {
-  const [profileData, setProfileData] = useState({
-    firstName: 'Sarah',
-    lastName: 'Ben Ali',
-    phone: '+216 12 345 678',
-    location: 'Tunis, Tunisia',
+  const [profileData, setProfileData] = useState<ProfileData>({
+    firstName: '',
+    lastName: '',
+    phone: '',
+    location: '',
   });
+  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errors, setErrors] = useState<Errors>({});
+
+  useEffect(() => {
+    fetchProfile();
+  }, []);
+
+  const fetchProfile = async () => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      console.log('Token retrieved:', token ? 'Token exists' : 'No token found');
+      
+      if (!token) {
+        console.log('No token found, redirecting to login');
+        router.replace('/login');
+        return;
+      }
+
+      const response = await axios.get('http://localhost:5000/users/me', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+      });
+
+      console.log('Profile fetch response:', response.data);
+
+      const user = response.data;
+      setProfileData({
+        firstName: user.prenom || '',
+        lastName: user.nom || '',
+        phone: user.numero || '',
+        location: user.location || '',
+      });
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+      if (axios.isAxiosError(error)) {
+        console.log('Error status:', error.response?.status);
+        console.log('Error data:', error.response?.data);
+        if (error.response?.status === 401) {
+          console.log('Unauthorized, redirecting to login');
+          router.replace('/login');
+          return;
+        }
+      }
+      Alert.alert('Error', 'Failed to load profile data.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
@@ -45,13 +111,11 @@ export default function EditProfileScreen() {
     confirm: false,
   });
 
-  const [isLoading, setIsLoading] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
-  const [errors, setErrors] = useState({});
   const [passwordErrors, setPasswordErrors] = useState({});
 
   const validateProfile = () => {
-    const newErrors = {};
+    const newErrors: Errors = {};
     let isValid = true;
 
     if (!profileData.firstName.trim()) {
@@ -115,19 +179,66 @@ export default function EditProfileScreen() {
     setPasswordErrors(newErrors);
     return isValid;
   };
+const handleSaveProfile = async () => {
+  if (!validateProfile()) return;
 
-  const handleSaveProfile = async () => {
-    if (!validateProfile()) return;
+  setIsLoading(true);
+  try {
+    const token = await AsyncStorage.getItem('token');
+    console.log('Token for update:', token ? 'Token exists' : 'No token found');
 
-    setIsLoading(true);
-    
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
-      Alert.alert('Success', 'Profile updated successfully!');
-      router.back();
-    }, 1500);
-  };
+    if (!token) {
+      console.log('No token found for update, redirecting to login');
+      router.replace('/login');
+      return;
+    }
+
+    // Get user info including _id
+    const meResponse = await axios.get('http://localhost:5000/users/me', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    const user = meResponse.data;
+    const clientId = user._id;
+    console.log('Client ID:', clientId);
+
+    if (!clientId) {
+      Alert.alert('Error', 'User ID not found.');
+      return;
+    }
+
+    const updateData = {
+      prenom: profileData.firstName,
+      nom: profileData.lastName,
+      numero: profileData.phone,
+      location: profileData.location,
+    };
+
+    console.log('Sending update data:', updateData);
+
+    const response = await axios.put(
+      `http://localhost:5000/users/clients/${clientId}`,
+      updateData,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
+
+    console.log('Update response:', response.data);
+    Alert.alert('Success', 'Profile updated successfully!');
+    router.back();
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    if (axios.isAxiosError(error)) {
+      console.log('Error status:', error.response?.status);
+      console.log('Error data:', error.response?.data);
+    }
+    Alert.alert('Error', 'Failed to update profile. Please try again.');
+  } finally {
+    setIsLoading(false);
+  }
+};
+
 
   const handleChangePassword = async () => {
     if (!validatePassword()) return;
@@ -148,10 +259,10 @@ export default function EditProfileScreen() {
     }, 2000);
   };
 
-  const updateProfileData = (field, value) => {
+  const updateProfileData = (field: keyof ProfileData, value: string) => {
     setProfileData(prev => ({ ...prev, [field]: value }));
     if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
+      setErrors(prev => ({ ...prev, [field]: undefined }));
     }
   };
 
