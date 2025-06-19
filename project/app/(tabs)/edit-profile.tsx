@@ -31,6 +31,7 @@ interface ProfileData {
   lastName: string;
   phone: string;
   location: string;
+  password: string;
 }
 
 interface Errors {
@@ -38,6 +39,7 @@ interface Errors {
   lastName?: string;
   phone?: string;
   location?: string;
+  password?: string;
 }
 
 export default function EditProfileScreen() {
@@ -46,6 +48,7 @@ export default function EditProfileScreen() {
     lastName: '',
     phone: '',
     location: '',
+    password: '',
   });
   const [loading, setLoading] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
@@ -80,6 +83,7 @@ export default function EditProfileScreen() {
         lastName: user.nom || '',
         phone: user.numero || '',
         location: user.location || '',
+        password: '123456', // Initialize password field
       });
     } catch (error) {
       console.error('Error fetching profile:', error);
@@ -99,10 +103,11 @@ export default function EditProfileScreen() {
   };
 
   const [passwordData, setPasswordData] = useState({
-    currentPassword: '',
+    oldPassword: '',
     newPassword: '',
     confirmPassword: '',
   });
+
 
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showPasswords, setShowPasswords] = useState({
@@ -156,10 +161,10 @@ export default function EditProfileScreen() {
     }
 
     if (!passwordData.newPassword) {
-      newErrors.newPassword = 'New password is required';
+      newErrors.passwordData = 'New password is required';
       isValid = false;
     } else if (passwordData.newPassword.length < 6) {
-      newErrors.newPassword = 'Password must be at least 6 characters';
+      newErrors.passwordData = 'Password must be at least 6 characters';
       isValid = false;
     }
 
@@ -212,6 +217,7 @@ const handleSaveProfile = async () => {
       nom: profileData.lastName,
       numero: profileData.phone,
       location: profileData.location,
+      password: "123456"
     };
 
     console.log('Sending update data:', updateData);
@@ -239,25 +245,76 @@ const handleSaveProfile = async () => {
   }
 };
 
+const handleChangePassword = async () => {
+  if (!validatePassword()) return;
 
-  const handleChangePassword = async () => {
-    if (!validatePassword()) return;
+  setIsLoading(true);
+  try {
+    const token = await AsyncStorage.getItem('token');
+    console.log('Token for update:', token ? 'Token exists' : 'No token found');
 
-    setPasswordLoading(true);
+    if (!token) {
+      console.log('No token found for update, redirecting to login');
+      router.replace('/login');
+      return;
+    }
+
+    // Get user info including _id
+    const meResponse = await axios.get('http://localhost:5000/users/me', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    const user = meResponse.data;
+    const clientId = user._id;
+    console.log('Client ID:', clientId);
+
+    if (!clientId) {
+      Alert.alert('Erreur', 'Utilisateur introuvable.');
+      return;
+    }
+
+    // Prepare payload with old and new password
+    const payload = {
+      oldPassword: passwordData.oldPassword,
+      newPassword: passwordData.newPassword,
+    };
     
-    // Simulate API call
-    setTimeout(() => {
-      setPasswordLoading(false);
-      setShowPasswordModal(false);
-      setPasswordData({
-        currentPassword: '',
-        newPassword: '',
-        confirmPassword: '',
-      });
-      setPasswordErrors({});
-      Alert.alert('Success', 'Password changed successfully!');
-    }, 2000);
-  };
+    console.log('Sending update data:', payload);
+
+    const response = await axios.put(
+      `http://localhost:5000/users/updatepassword/${clientId}`,
+      payload,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
+
+    console.log('Update response:', response.data);
+    Alert.alert('Succès', 'Mot de passe mis à jour avec succès !');
+    router.back();
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    if (axios.isAxiosError(error)) {
+      const status = error.response?.status;
+      const message = error.response?.data?.message;
+
+      console.log('Error status:', status);
+      console.log('Error data:', message);
+
+      if (status === 401 && message === 'Mot de passe actuel incorrect.') {
+        Alert.alert('Erreur', 'Le mot de passe actuel est incorrect.');
+      } else {
+        Alert.alert('Erreur', message || 'Échec de la mise à jour du mot de passe.');
+      }
+    } else {
+      Alert.alert('Erreur', 'Une erreur est survenue.');
+    }
+  } finally {
+    setIsLoading(false);
+  }
+};
+
+
 
   const updateProfileData = (field: keyof ProfileData, value: string) => {
     setProfileData(prev => ({ ...prev, [field]: value }));
@@ -266,14 +323,14 @@ const handleSaveProfile = async () => {
     }
   };
 
-  const updatePasswordData = (field, value) => {
-    setPasswordData(prev => ({ ...prev, [field]: value }));
-    if (passwordErrors[field]) {
-      setPasswordErrors(prev => ({ ...prev, [field]: '' }));
-    }
-  };
+ const updatePasswordData = (field: keyof PasswordData, value: string) => {
+  setPasswordData(prev => ({ ...prev, [field]: value }));
+  if (errors[field]) {
+    setErrors(prev => ({ ...prev, [field]: undefined }));
+  }
+};
 
-  const togglePasswordVisibility = (field) => {
+  const togglePasswordVisibility = (field: keyof PasswordData) => {
     setShowPasswords(prev => ({ ...prev, [field]: !prev[field] }));
   };
 
@@ -463,8 +520,8 @@ const handleSaveProfile = async () => {
                 <TextInput
                   style={styles.textInput}
                   placeholder="Enter current password"
-                  value={passwordData.currentPassword}
-                  onChangeText={(text) => updatePasswordData('currentPassword', text)}
+                  value={passwordData.oldPassword}
+                  onChangeText={(text) => updatePasswordData('oldPassword', text)}
                   secureTextEntry={!showPasswords.current}
                   placeholderTextColor="#8E8E93"
                 />

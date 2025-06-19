@@ -183,7 +183,7 @@ exports.resetPassword = async (req, res) => {
       });
     }
 
-    const hashedPassword = await bcrypt.hash(req.body.newPassword, 10);
+    const hashedPassword = await bcrypt.hash(req.body.password.newPassword, 10);
 
     await Utilisateur.findOneAndUpdate(
       { _id: user._id },
@@ -358,6 +358,38 @@ exports.updateClient = async (req, res) => {
   }
 };
 
+exports.updatePassword = async (req, res) => {
+  try {
+    const { oldPassword, newPassword } = req.body;
+
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({ message: 'Ancien et nouveau mot de passe requis.' });
+    }
+
+    const user = await Utilisateur.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ message: 'Utilisateur non trouvé.' });
+    }
+
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Mot de passe actuel incorrect.' });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    user.password = hashedPassword;
+    await user.save();
+
+    return res.status(200).json({ message: 'Mot de passe mis à jour avec succès.' });
+  } catch (error) {
+    console.error('❌ Erreur dans updatePassword:', error.message);
+    return res.status(500).json({ message: 'Erreur serveur.', error: error.message });
+  }
+};
+
+
+
 exports.getUserInfo = async (req, res) => {
   try {
     if (!req.user || !req.user._id) {
@@ -388,4 +420,3 @@ exports.getUserInfo = async (req, res) => {
 };
 
 module.exports = exports;
-
