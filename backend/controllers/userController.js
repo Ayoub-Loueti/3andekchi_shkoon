@@ -183,7 +183,7 @@ exports.resetPassword = async (req, res) => {
       });
     }
 
-    const hashedPassword = await bcrypt.hash(req.body.newPassword, 10);
+    const hashedPassword = await bcrypt.hash(req.body.password.newPassword, 10);
 
     await Utilisateur.findOneAndUpdate(
       { _id: user._id },
@@ -331,43 +331,60 @@ exports.unblockClient = async (req, res) => {
     res.status(500).json({ message: 'Erreur serveur.' });
   }
 };
-
 exports.updateClient = async (req, res) => {
-  const clientId = req.params.id;
-  const { nom, prenom, mail, numero, password } = req.body;
-
   try {
-    const client = await Client.findById(clientId);
+    console.log('PUT /users/clients/:id - Body:', req.body);
+    console.log('Client ID:', req.params.id);
+
+    const client = await Utilisateur.findByIdAndUpdate(
+      req.params.id,
+      {
+        $set: req.body,
+      },
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
 
     if (!client) {
-      return res.status(404).json({ message: 'Client non trouvé.' });
+      return res.status(404).json({ message: 'Client not found.' });
     }
 
-    if (nom) client.nom = nom;
-    if (prenom) client.prenom = prenom;
-    if (mail) client.mail = mail;
-    if (numero) client.numero = numero;
-
-    if (password) {
-      const salt = await bcrypt.genSalt(10);
-      client.password = await bcrypt.hash(password, salt);
-    }
-
-    await client.save();
-
-    res.status(200).json({
-      message: 'Compte mis à jour avec succès.',
-      client: {
-        _id: client._id,
-        nom: client.nom,
-        prenom: client.prenom,
-        mail: client.mail,
-        numero: client.numero,
-        rate: client.rate,
-      }
-    });
+    res.status(200).json(client);
   } catch (error) {
-    res.status(500).json({ message: 'Erreur serveur.' });
+    console.error('❌ Error in updateClient:', error.message);
+    res.status(500).json({ message: 'Erreur serveur.', error: error.message });
+  }
+};
+
+exports.updatePassword = async (req, res) => {
+  try {
+    const { oldPassword, newPassword } = req.body;
+
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({ message: 'Ancien et nouveau mot de passe requis.' });
+    }
+
+    const user = await Utilisateur.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ message: 'Utilisateur non trouvé.' });
+    }
+
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Mot de passe actuel incorrect.' });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    user.password = hashedPassword;
+    await user.save();
+
+    return res.status(200).json({ message: 'Mot de passe mis à jour avec succès.' });
+  } catch (error) {
+    console.error('❌ Erreur dans updatePassword:', error.message);
+    return res.status(500).json({ message: 'Erreur serveur.', error: error.message });
   }
 };
 
@@ -401,4 +418,3 @@ exports.getUserInfo = async (req, res) => {
 };
 
 module.exports = exports;
-

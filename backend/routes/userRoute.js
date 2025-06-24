@@ -23,5 +23,6 @@ router.put('/clients/:id/unblock', utilisateurController.unblockClient);
 router.put('/clients/:id/archive', utilisateurController.archiveClient);
 router.put('/clients/:id/unarchive', utilisateurController.unarchiveClient);
 router.put('/clients/:id', utilisateurController.updateClient);
+router.put('/updatepassword/:id', utilisateurController.updatePassword);
 
 module.exports = router;

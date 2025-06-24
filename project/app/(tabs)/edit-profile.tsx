@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
 import {
   View,
   Text,
@@ -24,19 +26,88 @@ const colors = {
   error: '#EF5350',
 };
 
+interface ProfileData {
+  firstName: string;
+  lastName: string;
+  phone: string;
+  location: string;
+  password: string;
+}
+
+interface Errors {
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  location?: string;
+  password?: string;
+}
+
 export default function EditProfileScreen() {
-  const [profileData, setProfileData] = useState({
-    firstName: 'Sarah',
-    lastName: 'Ben Ali',
-    phone: '+216 12 345 678',
-    location: 'Tunis, Tunisia',
+  const [profileData, setProfileData] = useState<ProfileData>({
+    firstName: '',
+    lastName: '',
+    phone: '',
+    location: '',
+    password: '',
   });
+  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errors, setErrors] = useState<Errors>({});
+
+  useEffect(() => {
+    fetchProfile();
+  }, []);
+
+  const fetchProfile = async () => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      console.log('Token retrieved:', token ? 'Token exists' : 'No token found');
+      
+      if (!token) {
+        console.log('No token found, redirecting to login');
+        router.replace('/login');
+        return;
+      }
+
+      const response = await axios.get('http://localhost:5000/users/me', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+      });
+
+      console.log('Profile fetch response:', response.data);
+
+      const user = response.data;
+      setProfileData({
+        firstName: user.prenom || '',
+        lastName: user.nom || '',
+        phone: user.numero || '',
+        location: user.location || '',
+        password: '123456', // Initialize password field
+      });
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+      if (axios.isAxiosError(error)) {
+        console.log('Error status:', error.response?.status);
+        console.log('Error data:', error.response?.data);
+        if (error.response?.status === 401) {
+          console.log('Unauthorized, redirecting to login');
+          router.replace('/login');
+          return;
+        }
+      }
+      Alert.alert('Error', 'Failed to load profile data.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const [passwordData, setPasswordData] = useState({
-    currentPassword: '',
+    oldPassword: '',
     newPassword: '',
     confirmPassword: '',
   });
+
 
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showPasswords, setShowPasswords] = useState({
@@ -45,13 +116,11 @@ export default function EditProfileScreen() {
     confirm: false,
   });
 
-  const [isLoading, setIsLoading] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
-  const [errors, setErrors] = useState({});
   const [passwordErrors, setPasswordErrors] = useState({});
 
   const validateProfile = () => {
-    const newErrors = {};
+    const newErrors: Errors = {};
     let isValid = true;
 
     if (!profileData.firstName.trim()) {
@@ -86,16 +155,16 @@ export default function EditProfileScreen() {
     const newErrors = {};
     let isValid = true;
 
-    if (!passwordData.currentPassword) {
-      newErrors.currentPassword = 'Current password is required';
+    if (!passwordData.oldPassword) {
+      newErrors.oldPassword = 'Current password is required';
       isValid = false;
     }
 
     if (!passwordData.newPassword) {
-      newErrors.newPassword = 'New password is required';
+      newErrors.passwordData = 'New password is required';
       isValid = false;
     } else if (passwordData.newPassword.length < 6) {
-      newErrors.newPassword = 'Password must be at least 6 characters';
+      newErrors.passwordData = 'Password must be at least 6 characters';
       isValid = false;
     }
 
@@ -107,7 +176,7 @@ export default function EditProfileScreen() {
       isValid = false;
     }
 
-    if (passwordData.currentPassword === passwordData.newPassword) {
+    if (passwordData.oldPassword === passwordData.newPassword) {
       newErrors.newPassword = 'New password must be different from current password';
       isValid = false;
     }
@@ -115,54 +184,153 @@ export default function EditProfileScreen() {
     setPasswordErrors(newErrors);
     return isValid;
   };
+const handleSaveProfile = async () => {
+  if (!validateProfile()) return;
 
-  const handleSaveProfile = async () => {
-    if (!validateProfile()) return;
+  setIsLoading(true);
+  try {
+    const token = await AsyncStorage.getItem('token');
+    console.log('Token for update:', token ? 'Token exists' : 'No token found');
 
-    setIsLoading(true);
+    if (!token) {
+      console.log('No token found for update, redirecting to login');
+      router.replace('/login');
+      return;
+    }
+
+    // Get user info including _id
+    const meResponse = await axios.get('http://localhost:5000/users/me', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    const user = meResponse.data;
+    const clientId = user._id;
+    console.log('Client ID:', clientId);
+
+    if (!clientId) {
+      Alert.alert('Error', 'User ID not found.');
+      return;
+    }
+
+    const updateData = {
+      prenom: profileData.firstName,
+      nom: profileData.lastName,
+      numero: profileData.phone,
+      location: profileData.location,
+      password: "123456"
+    };
+
+    console.log('Sending update data:', updateData);
+
+    const response = await axios.put(
+      `http://localhost:5000/users/clients/${clientId}`,
+      updateData,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
+
+    console.log('Update response:', response.data);
+    Alert.alert('Success', 'Profile updated successfully!');
+    router.back();
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    if (axios.isAxiosError(error)) {
+      console.log('Error status:', error.response?.status);
+      console.log('Error data:', error.response?.data);
+    }
+    Alert.alert('Error', 'Failed to update profile. Please try again.');
+  } finally {
+    setIsLoading(false);
+  }
+};
+
+const handleChangePassword = async () => {
+  if (!validatePassword()) return;
+
+  setIsLoading(true);
+  try {
+    const token = await AsyncStorage.getItem('token');
+    console.log('Token for update:', token ? 'Token exists' : 'No token found');
+
+    if (!token) {
+      console.log('No token found for update, redirecting to login');
+      router.replace('/login');
+      return;
+    }
+
+    // Get user info including _id
+    const meResponse = await axios.get('http://localhost:5000/users/me', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    const user = meResponse.data;
+    const clientId = user._id;
+    console.log('Client ID:', clientId);
+
+    if (!clientId) {
+      Alert.alert('Erreur', 'Utilisateur introuvable.');
+      return;
+    }
+
+    // Prepare payload with old and new password
+    const payload = {
+      oldPassword: passwordData.oldPassword,
+      newPassword: passwordData.newPassword,
+    };
     
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
-      Alert.alert('Success', 'Profile updated successfully!');
-      router.back();
-    }, 1500);
-  };
+    console.log('Sending update data:', payload);
 
-  const handleChangePassword = async () => {
-    if (!validatePassword()) return;
+    const response = await axios.put(
+      `http://localhost:5000/users/updatepassword/${clientId}`,
+      payload,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
 
-    setPasswordLoading(true);
-    
-    // Simulate API call
-    setTimeout(() => {
-      setPasswordLoading(false);
-      setShowPasswordModal(false);
-      setPasswordData({
-        currentPassword: '',
-        newPassword: '',
-        confirmPassword: '',
-      });
-      setPasswordErrors({});
-      Alert.alert('Success', 'Password changed successfully!');
-    }, 2000);
-  };
+    console.log('Update response:', response.data);
+    Alert.alert('Succès', 'Mot de passe mis à jour avec succès !');
+    router.back();
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    if (axios.isAxiosError(error)) {
+      const status = error.response?.status;
+      const message = error.response?.data?.message;
 
-  const updateProfileData = (field, value) => {
+      console.log('Error status:', status);
+      console.log('Error data:', message);
+
+      if (status === 401 && message === 'Mot de passe actuel incorrect.') {
+        Alert.alert('Erreur', 'Le mot de passe actuel est incorrect.');
+      } else {
+        Alert.alert('Erreur', message || 'Échec de la mise à jour du mot de passe.');
+      }
+    } else {
+      Alert.alert('Erreur', 'Une erreur est survenue.');
+    }
+  } finally {
+    setIsLoading(false);
+  }
+};
+
+
+
+  const updateProfileData = (field: keyof ProfileData, value: string) => {
     setProfileData(prev => ({ ...prev, [field]: value }));
     if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
+      setErrors(prev => ({ ...prev, [field]: undefined }));
     }
   };
 
-  const updatePasswordData = (field, value) => {
-    setPasswordData(prev => ({ ...prev, [field]: value }));
-    if (passwordErrors[field]) {
-      setPasswordErrors(prev => ({ ...prev, [field]: '' }));
-    }
-  };
+ const updatePasswordData = (field: keyof PasswordData, value: string) => {
+  setPasswordData(prev => ({ ...prev, [field]: value }));
+  if (errors[field]) {
+    setErrors(prev => ({ ...prev, [field]: undefined }));
+  }
+};
 
-  const togglePasswordVisibility = (field) => {
+  const togglePasswordVisibility = (field: keyof PasswordData) => {
     setShowPasswords(prev => ({ ...prev, [field]: !prev[field] }));
   };
 
@@ -347,13 +515,13 @@ export default function EditProfileScreen() {
             {/* Current Password */}
             <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>Current Password</Text>
-              <View style={[styles.inputWrapper, passwordErrors.currentPassword && styles.inputError]}>
+              <View style={[styles.inputWrapper, passwordErrors.oldPassword && styles.inputError]}>
                 <Lock size={20} color="#8E8E93" strokeWidth={2} />
                 <TextInput
                   style={styles.textInput}
                   placeholder="Enter current password"
-                  value={passwordData.currentPassword}
-                  onChangeText={(text) => updatePasswordData('currentPassword', text)}
+                  value={passwordData.oldPassword}
+                  onChangeText={(text) => updatePasswordData('oldPassword', text)}
                   secureTextEntry={!showPasswords.current}
                   placeholderTextColor="#8E8E93"
                 />
@@ -368,7 +536,7 @@ export default function EditProfileScreen() {
                   )}
                 </TouchableOpacity>
               </View>
-              {passwordErrors.currentPassword ? <Text style={styles.errorText}>{passwordErrors.currentPassword}</Text> : null}
+              {passwordErrors.oldPassword ? <Text style={styles.errorText}>{passwordErrors.oldPassword}</Text> : null}
             </View>
 
             {/* New Password */}
