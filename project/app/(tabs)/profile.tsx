@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,10 +9,15 @@ import {
   Image,
   Switch,
   Alert,
+  Modal,
+  Platform,
 } from 'react-native';
 import { router } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Settings, Star, MapPin, Calendar, Award, Shield, Bell, CreditCard, CircleHelp as HelpCircle, LogOut, CreditCard as Edit3, Camera, ChevronRight, User, Briefcase } from 'lucide-react-native';
+import { Settings, Star, MapPin, Calendar, Award, Shield, Bell, CreditCard, CircleHelp as HelpCircle, LogOut, CreditCard as Edit3, Camera, ChevronRight, User, Briefcase, Upload, Image as ImageIcon } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
+import axios from 'axios';
 
 interface MenuItem {
   id: number;
@@ -33,6 +38,15 @@ const colors = {
   success: '#4CAF50',
   error: '#EF5350',
 };
+
+const availableAvatars = [
+  '/uploads/avatarHomme1.png',
+  '/uploads/avatarHomme2.png',
+  '/uploads/avatarHomme3.png',
+  '/uploads/avatarFemme1.png',
+  '/uploads/avatarFemme2.png',
+  '/uploads/avatarFemme3.png',
+];
 
 const stats = [
   { label: 'Jobs Completed', value: '23', icon: Briefcase },
@@ -77,10 +91,22 @@ export default function ProfileScreen() {
     location: '',
     avatar: '',
     rate: 0,
-    createdAt: ''
+    createdAt: '',
+    genre: '',
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [showAvatarModal, setShowAvatarModal] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
+  const requestPermissions = async () => {
+    if (Platform.OS !== 'web') {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Sorry, we need camera roll permissions to upload images.');
+      }
+    }
+  };
+  
   const getMyInfo = async () => {
     try {
       const token = await AsyncStorage.getItem('token');
@@ -115,7 +141,8 @@ export default function ProfileScreen() {
         location: data.location || '',
         avatar: data.avatar || 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=400',
         rate: data.rate || 0,
-        createdAt: data.createdAt ? new Date(data.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'March 2024'
+        createdAt: data.createdAt ? new Date(data.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'March 2024',
+        genre: data.genre || '',
       });
     } catch (error) {
       console.error('Error fetching user info:', error);
@@ -125,9 +152,117 @@ export default function ProfileScreen() {
     }
   };
 
-  useEffect(() => {
-    getMyInfo();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      getMyInfo();
+      requestPermissions();
+    }, [])
+  );
+
+  const handleAvatarSelect = async (selectedAvatar: string) => {
+    // Optimistically update UI
+    setUserInfo(prev => ({ ...prev, avatar: selectedAvatar }));
+    setShowAvatarModal(false);
+
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        router.replace('/(auth)/login');
+        return;
+      }
+      
+      const meResponse = await axios.get('http://localhost:5000/users/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const clientId = meResponse.data._id;
+
+      if (!clientId) {
+        Alert.alert('Error', 'User ID not found.');
+        // Revert UI change
+        await getMyInfo(); 
+        return;
+      }
+
+      await axios.put(
+        `http://localhost:5000/users/clients/${clientId}`,
+        { avatar: selectedAvatar },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      Alert.alert('Success', 'Avatar updated successfully.');
+    } catch (error) {
+      console.error('Error updating avatar:', error);
+      Alert.alert('Error', 'Failed to update avatar. Please try again.');
+      // Revert UI change by refetching profile
+      getMyInfo();
+    }
+  };
+
+  const handleImagePicker = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        await uploadCustomImage(result.assets[0]);
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Error', 'Failed to select image. Please try again.');
+    }
+  };
+
+  const uploadCustomImage = async (imageAsset: any) => {
+    setUploadingImage(true);
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        router.replace('/(auth)/login');
+        return;
+      }
+
+      const formData = new FormData();
+      if (Platform.OS === 'web') {
+        const response = await fetch(imageAsset.uri);
+        const blob = await response.blob();
+        formData.append('avatar', blob, imageAsset.fileName || `avatar_${Date.now()}.jpg`);
+      } else {
+        formData.append('avatar', {
+          uri: imageAsset.uri,
+          type: imageAsset.mimeType || 'image/jpeg',
+          name: imageAsset.fileName || `avatar_${Date.now()}.jpg`,
+        } as any);
+      }
+      
+      const response = await axios.post(
+        'http://localhost:5000/users/upload-avatar',
+        formData,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
+
+      const avatarPath = response.data.avatar;
+      
+      // Update local state
+      setUserInfo(prev => ({ ...prev, avatar: avatarPath }));
+      setShowAvatarModal(false);
+      
+      Alert.alert('Success', 'Custom avatar uploaded successfully!');
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      Alert.alert('Error', 'Failed to upload image. Please try again.');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
 
   const handleMenuItemPress = async (item: MenuItem) => {
     if (item.action === 'edit-profile') {
@@ -202,16 +337,22 @@ export default function ProfileScreen() {
                 }} 
                 style={styles.avatar}
               />
-              <TouchableOpacity style={styles.cameraButton}>
+              <TouchableOpacity style={styles.cameraButton} onPress={() => setShowAvatarModal(true)}>
                 <Camera size={16} color="white" strokeWidth={2} />
               </TouchableOpacity>
             </View>
             
             <View style={styles.profileInfo}>
               <Text style={styles.name}>{`${userInfo.prenom} ${userInfo.nom}`}</Text>
-              <View style={styles.locationContainer}>
-                <MapPin size={14} color="#8E8E93" strokeWidth={2} />
-                <Text style={styles.location}>{userInfo.location}</Text>
+              <View style={styles.metaContainer}>
+                <View style={styles.metaItem}>
+                  <User size={14} color="#8E8E93" strokeWidth={2} />
+                  <Text style={styles.metaText}>{userInfo.genre}</Text>
+                </View>
+                <View style={styles.metaItem}>
+                  <MapPin size={14} color="#8E8E93" strokeWidth={2} />
+                  <Text style={styles.metaText}>{userInfo.location}</Text>
+                </View>
               </View>
               <View style={styles.joinedContainer}>
                 <Calendar size={14} color="#8E8E93" strokeWidth={2} />
@@ -259,6 +400,116 @@ export default function ProfileScreen() {
           <Text style={styles.appVersion}>Version 1.0.0</Text>
         </View>
       </ScrollView>
+
+      {/* Enhanced Avatar Selection Modal */}
+      <Modal
+        visible={showAvatarModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowAvatarModal(false)}
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity 
+              onPress={() => setShowAvatarModal(false)}
+              style={styles.modalCloseButton}
+            >
+              <Text style={styles.modalCloseText}>Cancel</Text>
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Choose Avatar</Text>
+            <View style={styles.placeholder} />
+          </View>
+          
+          <ScrollView contentContainerStyle={styles.avatarModalContent}>
+            {/* Default Avatars Section */}
+            <View style={styles.avatarSection}>
+              <View style={styles.avatarSectionHeader}>
+                <ImageIcon size={24} color={colors.primary} strokeWidth={2} />
+                <Text style={styles.avatarSectionTitle}>Select an existing avatar</Text>
+              </View>
+              
+              <View style={styles.avatarGrid}>
+                {availableAvatars.map((avatarUri) => (
+                  <TouchableOpacity 
+                    key={avatarUri}
+                    style={[
+                      styles.avatarGridItem,
+                      userInfo.avatar === avatarUri && styles.selectedAvatarItem
+                    ]}
+                    onPress={() => handleAvatarSelect(avatarUri)}
+                  >
+                    <Image 
+                      source={{ uri: `http://localhost:5000${avatarUri}` }} 
+                      style={styles.avatarGridImage}
+                    />
+                    {userInfo.avatar === avatarUri && (
+                      <View style={styles.selectedOverlay}>
+                        <View style={styles.checkmark}>
+                          <Text style={styles.checkmarkText}>✓</Text>
+                        </View>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Divider */}
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            {/* Custom Image Upload Section */}
+            <View style={styles.avatarSection}>
+              <View style={styles.avatarSectionHeader}>
+                <Upload size={24} color={colors.accent} strokeWidth={2} />
+                <Text style={styles.avatarSectionTitle}>Select an image from your library</Text>
+              </View>
+              
+              <TouchableOpacity 
+                style={[styles.uploadButton, uploadingImage && styles.uploadButtonDisabled]}
+                onPress={handleImagePicker}
+                disabled={uploadingImage}
+              >
+                <View style={styles.uploadButtonContent}>
+                  {uploadingImage ? (
+                    <>
+                      <View style={styles.uploadSpinner} />
+                      <Text style={styles.uploadButtonText}>Uploading...</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Camera size={32} color={colors.accent} strokeWidth={2} />
+                      <Text style={styles.uploadButtonText}>Choose from Gallery</Text>
+                      <Text style={styles.uploadButtonSubtext}>Upload a custom profile picture</Text>
+                    </>
+                  )}
+                </View>
+              </TouchableOpacity>
+
+              {/* Current Custom Avatar Preview */}
+              {userInfo.avatar && !availableAvatars.includes(userInfo.avatar) && (
+                <View style={styles.currentAvatarPreview}>
+                  <Text style={styles.currentAvatarLabel}>Current custom avatar:</Text>
+                  <View style={styles.currentAvatarContainer}>
+                    <Image 
+                      source={{ uri: `http://localhost:5000${userInfo.avatar}` }} 
+                      style={styles.currentAvatarImage}
+                    />
+                    <View style={styles.selectedOverlay}>
+                      <View style={styles.checkmark}>
+                        <Text style={styles.checkmarkText}>✓</Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+              )}
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -309,28 +560,35 @@ const styles = StyleSheet.create({
     borderColor: 'white',
   },
   profileInfo: {
+    marginLeft: 16,
     flex: 1,
   },
   name: {
     fontSize: 22,
-    fontFamily: 'Inter-Bold',
+    fontWeight: 'bold',
     color: colors.text,
-    marginBottom: 8,
   },
-  locationContainer: {
+  metaContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginTop: 6,
+    flexWrap: 'wrap',
+  },
+  metaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 12,
     marginBottom: 4,
   },
-  location: {
+  metaText: {
     fontSize: 14,
-    fontFamily: 'Inter-Regular',
     color: '#8E8E93',
     marginLeft: 4,
   },
   joinedContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginTop: 6,
   },
   joined: {
     fontSize: 14,
@@ -444,5 +702,159 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: 'Inter-Regular',
     color: '#8E8E93',
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: 'white',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  modalCloseButton: {
+    padding: 8,
+  },
+  modalCloseText: {
+    fontSize: 16,
+    color: colors.primary,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.text,
+  },
+  placeholder: {
+    width: 40,
+  },
+  avatarModalContent: {
+    padding: 20,
+  },
+  avatarSection: {
+    marginBottom: 30,
+  },
+  avatarSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  avatarSectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+    marginLeft: 12,
+  },
+  avatarGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  avatarGridItem: {
+    width: '30%',
+    aspectRatio: 1,
+    marginBottom: 15,
+    position: 'relative',
+  },
+  selectedAvatarItem: {
+    transform: [{ scale: 0.95 }],
+  },
+  avatarGridImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 50,
+  },
+  selectedOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(42, 77, 105, 0.8)',
+    borderRadius: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkmark: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: colors.success,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkmarkText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#E5E5EA',
+  },
+  dividerText: {
+    fontSize: 14,
+    color: '#8E8E93',
+    marginHorizontal: 16,
+  },
+  uploadButton: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 24,
+    borderWidth: 2,
+    borderColor: colors.accent,
+    borderStyle: 'dashed',
+  },
+  uploadButtonDisabled: {
+    opacity: 0.7,
+  },
+  uploadButtonContent: {
+    alignItems: 'center',
+  },
+  uploadButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.accent,
+    marginTop: 12,
+  },
+  uploadButtonSubtext: {
+    fontSize: 14,
+    color: '#8E8E93',
+    marginTop: 4,
+  },
+  uploadSpinner: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 3,
+    borderColor: colors.accent + '30',
+    borderTopColor: colors.accent,
+  },
+  currentAvatarPreview: {
+    marginTop: 20,
+    alignItems: 'center',
+  },
+  currentAvatarLabel: {
+    fontSize: 14,
+    color: '#8E8E93',
+    marginBottom: 12,
+  },
+  currentAvatarContainer: {
+    position: 'relative',
+  },
+  currentAvatarImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
   },
 });

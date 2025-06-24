@@ -34,6 +34,7 @@ type FormData = {
   location: string;
   password: string;
   confirmPassword: string;
+  genre: 'homme' | 'femme' | '';
 };
 
 type Errors = {
@@ -45,6 +46,7 @@ type Errors = {
   password?: string;
   confirmPassword?: string;
   terms?: string;
+  genre?: string;
 };
 
 export default function SignupScreen() {
@@ -56,6 +58,7 @@ export default function SignupScreen() {
     location: '',
     password: '',
     confirmPassword: '',
+    genre: '',
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -111,6 +114,11 @@ export default function SignupScreen() {
       isValid = false;
     }
 
+    if (!formData.genre) {
+      newErrors.genre = 'Please select a gender';
+      isValid = false;
+    }
+
     // Password validation
     if (!(formData as FormData).password) {
       newErrors.password = 'Password is required';
@@ -155,7 +163,8 @@ export default function SignupScreen() {
           mail: formData.email,
           numero: formData.phone,
           password: formData.password,
-          location: formData.location
+          location: formData.location,
+          genre: formData.genre,
         }),
       });
 
@@ -307,6 +316,46 @@ export default function SignupScreen() {
                 />
               </View>
               {errors.location ? <Text style={styles.errorText}>{errors.location}</Text> : null}
+            </View>
+
+            {/* Gender Selection */}
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Gender</Text>
+              <View style={styles.genderContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.genderButton,
+                    formData.genre === 'homme' && styles.genderButtonSelected,
+                  ]}
+                  onPress={() => updateFormData('genre', 'homme')}
+                >
+                  <Text
+                    style={[
+                      styles.genderButtonText,
+                      formData.genre === 'homme' && styles.genderButtonTextSelected,
+                    ]}
+                  >
+                    Homme
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.genderButton,
+                    formData.genre === 'femme' && styles.genderButtonSelected,
+                  ]}
+                  onPress={() => updateFormData('genre', 'femme')}
+                >
+                  <Text
+                    style={[
+                      styles.genderButtonText,
+                      formData.genre === 'femme' && styles.genderButtonTextSelected,
+                    ]}
+                  >
+                    Femme
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              {errors.genre ? <Text style={styles.errorText}>{errors.genre}</Text> : null}
             </View>
 
             {/* Password Input */}
@@ -641,5 +690,30 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'Inter-Bold',
     color: colors.primary,
+  },
+  genderContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  genderButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    alignItems: 'center',
+    marginHorizontal: 4,
+  },
+  genderButtonSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  genderButtonText: {
+    color: '#4B5563',
+    fontWeight: '600',
+  },
+  genderButtonTextSelected: {
+    color: '#FFFFFF',
   },
 });

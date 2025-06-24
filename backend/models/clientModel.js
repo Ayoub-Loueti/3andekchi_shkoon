@@ -17,6 +17,10 @@ const clientSchema = new mongoose.Schema({
   numero: {
     type: String, 
   },
+  genre: {
+    type: String,
+    enum: ['homme', 'femme'],
+  },
   rate: {
     type: Number,
     default: 0 

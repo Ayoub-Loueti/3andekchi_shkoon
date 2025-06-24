@@ -2,6 +2,7 @@ const Utilisateur = require('../models/clientModel');
 const bcrypt = require('bcryptjs');
 const nodemailer = require('nodemailer');
 const jwt = require('jsonwebtoken');
+const fs = require('fs');
 
 exports.loginUser = async (req, res) => {
   const { mail, password, remember } = req.body;
@@ -28,7 +29,7 @@ exports.loginUser = async (req, res) => {
 };
 
 exports.signupUser = async (req, res) => {
-  const { nom, prenom, mail, numero,  password, location } = req.body;
+  const { nom, prenom, mail, numero, password, location, genre } = req.body;
 
   const userExists = await Utilisateur.findOne({ mail });
 
@@ -40,15 +41,30 @@ exports.signupUser = async (req, res) => {
   const salt = await bcrypt.genSalt(10);
   const hashedPassword = await bcrypt.hash(password, salt);
 
-  // Array of default avatars
-  const defaultAvatars = [
-    '/uploads/avatarFemme1.png',
+  // Define avatars for each gender
+  const maleAvatars = [
     '/uploads/avatarHomme1.png',
     '/uploads/avatarHomme2.png',
+    '/uploads/avatarHomme3.png',
+  ];
+  const femaleAvatars = [
+    '/uploads/avatarFemme1.png',
+    '/uploads/avatarFemme2.png',
+    '/uploads/avatarFemme3.png',
   ];
 
-  // Pick a random avatar
-  const randomAvatar = defaultAvatars[Math.floor(Math.random() * defaultAvatars.length)];
+  let randomAvatar;
+
+  // Pick a random avatar based on gender
+  if (genre === 'homme') {
+    randomAvatar = maleAvatars[Math.floor(Math.random() * maleAvatars.length)];
+  } else if (genre === 'femme') {
+    randomAvatar = femaleAvatars[Math.floor(Math.random() * femaleAvatars.length)];
+  } else {
+    // Fallback if genre is not specified or is other
+    const allAvatars = [...maleAvatars, ...femaleAvatars];
+    randomAvatar = allAvatars[Math.floor(Math.random() * allAvatars.length)];
+  }
 
   const client = await Utilisateur.create({
     nom,
@@ -58,6 +74,7 @@ exports.signupUser = async (req, res) => {
     location,
     password: hashedPassword,
     avatar: randomAvatar, // Assign the random default avatar
+    genre,
   });
 
   if (client) {
@@ -68,6 +85,7 @@ exports.signupUser = async (req, res) => {
       mail: client.mail,
       numero: client.numero,
       location: client.location,
+      genre: client.genre,
       avatar: client.avatar, // Include the assigned avatar in the response
     });
   } else {
@@ -250,7 +268,7 @@ exports.resendForgotPasswordEmail = async (req, res) => {
 
 exports.getClients = async (req, res) => {
   try {
-    const clients = await Client.find({ isArchived: false }); // 👈 Ne récupérer que les non archivés
+    const clients = await Utilisateur.find({ isArchived: false }); // 👈 Ne récupérer que les non archivés
 
     if (!clients || clients.length === 0) {
       return res.status(404).json({ message: 'Aucun client trouvé.' });
@@ -273,7 +291,7 @@ exports.getClients = async (req, res) => {
 };
 exports.archiveClient = async (req, res) => {
   try {
-    const client = await Client.findById(req.params.id);
+    const client = await Utilisateur.findById(req.params.id);
     if (!client) return res.status(404).json({ message: 'Client non trouvé.' });
 
     client.isArchived = true;
@@ -287,7 +305,7 @@ exports.archiveClient = async (req, res) => {
 
 exports.unarchiveClient = async (req, res) => {
   try {
-    const client = await Client.findById(req.params.id);
+    const client = await Utilisateur.findById(req.params.id);
     if (!client) return res.status(404).json({ message: 'Client non trouvé.' });
 
     client.isArchived = false;
@@ -300,7 +318,7 @@ exports.unarchiveClient = async (req, res) => {
 };
 exports.blockClient = async (req, res) => {
   try {
-    const client = await Client.findById(req.params.id);
+    const client = await Utilisateur.findById(req.params.id);
 
     if (!client) {
       return res.status(404).json({ message: 'Client non trouvé.' });
@@ -317,7 +335,7 @@ exports.blockClient = async (req, res) => {
 
 exports.unblockClient = async (req, res) => {
   try {
-    const client = await Client.findById(req.params.id);
+    const client = await Utilisateur.findById(req.params.id);
 
     if (!client) {
       return res.status(404).json({ message: 'Client non trouvé.' });
@@ -409,11 +427,42 @@ exports.getUserInfo = async (req, res) => {
       location: user.location,
       avatar: user.avatar,
       rate: user.rate,
-      createdAt: user.createdAt
+      createdAt: user.createdAt,
+      genre: user.genre
     });
   } catch (error) {
     console.error('Error in getUserInfo:', error);
     res.status(500).json({ message: 'Server error' });
+  }
+};
+
+exports.updateAvatar = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded.' });
+    }
+
+    const user = await Utilisateur.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    // The new avatar path
+    const avatarPath = `/uploads/${req.file.filename}`;
+
+    // You might want to delete the old avatar here
+    // fs.unlink(...)
+
+    user.avatar = avatarPath;
+    await user.save();
+
+    res.json({
+      message: 'Avatar updated successfully',
+      avatar: avatarPath,
+    });
+  } catch (error) {
+    console.error('Error in updateAvatar:', error);
+    res.status(500).json({ message: 'Server error while updating avatar.' });
   }
 };
 

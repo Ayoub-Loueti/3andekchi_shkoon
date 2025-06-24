@@ -3,12 +3,15 @@ const router = express.Router();
 const utilisateurController = require('../controllers/userController');
 // const googleAuthController = require('../controllers/googleAuthController'); // Removed or commented out
 const { protect } = require('../middleware/authMiddleware');
+const upload = require('../middleware/uploadMiddleware');
 
 router.post('/', utilisateurController.signupUser );
 router.post('/login', utilisateurController.loginUser );
 
 // Protected route for getting user info
 router.get('/me', protect, utilisateurController.getUserInfo);
+
+router.post('/upload-avatar', protect, upload, utilisateurController.updateAvatar);
 
 router.post('/forgot-password', utilisateurController.forgotPassword);
 router.post('/check-reset-token', utilisateurController.checkResetToken);

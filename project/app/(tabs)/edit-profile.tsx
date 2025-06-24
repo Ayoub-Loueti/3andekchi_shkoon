@@ -12,9 +12,11 @@ import {
   Image,
   Modal,
   Alert,
+  Platform,
 } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowLeft, Camera, User, Phone, MapPin, Lock, Eye, EyeOff, Save, Key } from 'lucide-react-native';
+import { ArrowLeft, Camera, User, Phone, MapPin, Lock, Eye, EyeOff, Save, Key, Upload, Image as ImageIcon } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
 
 const colors = {
   primary: '#2A4D69',
@@ -26,12 +28,23 @@ const colors = {
   error: '#EF5350',
 };
 
+const availableAvatars = [
+  '/uploads/avatarHomme1.png',
+  '/uploads/avatarHomme2.png',
+  '/uploads/avatarHomme3.png',
+  '/uploads/avatarFemme1.png',
+  '/uploads/avatarFemme2.png',
+  '/uploads/avatarFemme3.png',
+];
+
 interface ProfileData {
   firstName: string;
   lastName: string;
   phone: string;
   location: string;
   password: string;
+  genre: 'homme' | 'femme' | '';
+  avatar: string;
 }
 
 interface Errors {
@@ -40,6 +53,14 @@ interface Errors {
   phone?: string;
   location?: string;
   password?: string;
+  genre?: string;
+  avatar?: string;
+}
+
+interface PasswordData {
+  oldPassword?: string;
+  newPassword?: string;
+  confirmPassword?: string;
 }
 
 export default function EditProfileScreen() {
@@ -49,14 +70,28 @@ export default function EditProfileScreen() {
     phone: '',
     location: '',
     password: '',
+    genre: '',
+    avatar: '',
   });
   const [loading, setLoading] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Errors>({});
+  const [showAvatarModal, setShowAvatarModal] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   useEffect(() => {
     fetchProfile();
+    requestPermissions();
   }, []);
+
+  const requestPermissions = async () => {
+    if (Platform.OS !== 'web') {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Sorry, we need camera roll permissions to upload images.');
+      }
+    }
+  };
 
   const fetchProfile = async () => {
     try {
@@ -84,6 +119,8 @@ export default function EditProfileScreen() {
         phone: user.numero || '',
         location: user.location || '',
         password: '123456', // Initialize password field
+        genre: user.genre || '',
+        avatar: user.avatar || '',
       });
     } catch (error) {
       console.error('Error fetching profile:', error);
@@ -102,12 +139,11 @@ export default function EditProfileScreen() {
     }
   };
 
-  const [passwordData, setPasswordData] = useState({
+  const [passwordData, setPasswordData] = useState<PasswordData>({
     oldPassword: '',
     newPassword: '',
     confirmPassword: '',
   });
-
 
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showPasswords, setShowPasswords] = useState({
@@ -117,7 +153,7 @@ export default function EditProfileScreen() {
   });
 
   const [passwordLoading, setPasswordLoading] = useState(false);
-  const [passwordErrors, setPasswordErrors] = useState({});
+  const [passwordErrors, setPasswordErrors] = useState<PasswordData>({});
 
   const validateProfile = () => {
     const newErrors: Errors = {};
@@ -147,12 +183,17 @@ export default function EditProfileScreen() {
       isValid = false;
     }
 
+    if (!profileData.genre) {
+      newErrors.genre = 'Please select a gender';
+      isValid = false;
+    }
+
     setErrors(newErrors);
     return isValid;
   };
 
   const validatePassword = () => {
-    const newErrors = {};
+    const newErrors: PasswordData = {};
     let isValid = true;
 
     if (!passwordData.oldPassword) {
@@ -161,10 +202,10 @@ export default function EditProfileScreen() {
     }
 
     if (!passwordData.newPassword) {
-      newErrors.passwordData = 'New password is required';
+      newErrors.newPassword = 'New password is required';
       isValid = false;
     } else if (passwordData.newPassword.length < 6) {
-      newErrors.passwordData = 'Password must be at least 6 characters';
+      newErrors.newPassword = 'Password must be at least 6 characters';
       isValid = false;
     }
 
@@ -184,137 +225,142 @@ export default function EditProfileScreen() {
     setPasswordErrors(newErrors);
     return isValid;
   };
-const handleSaveProfile = async () => {
-  if (!validateProfile()) return;
 
-  setIsLoading(true);
-  try {
-    const token = await AsyncStorage.getItem('token');
-    console.log('Token for update:', token ? 'Token exists' : 'No token found');
+  const handleSaveProfile = async () => {
+    if (!validateProfile()) return;
 
-    if (!token) {
-      console.log('No token found for update, redirecting to login');
-      router.replace('/login');
-      return;
-    }
+    setIsLoading(true);
+    try {
+      const token = await AsyncStorage.getItem('token');
+      console.log('Token for update:', token ? 'Token exists' : 'No token found');
 
-    // Get user info including _id
-    const meResponse = await axios.get('http://localhost:5000/users/me', {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    const user = meResponse.data;
-    const clientId = user._id;
-    console.log('Client ID:', clientId);
-
-    if (!clientId) {
-      Alert.alert('Error', 'User ID not found.');
-      return;
-    }
-
-    const updateData = {
-      prenom: profileData.firstName,
-      nom: profileData.lastName,
-      numero: profileData.phone,
-      location: profileData.location,
-      password: "123456"
-    };
-
-    console.log('Sending update data:', updateData);
-
-    const response = await axios.put(
-      `http://localhost:5000/users/clients/${clientId}`,
-      updateData,
-      {
-        headers: { Authorization: `Bearer ${token}` },
+      if (!token) {
+        console.log('No token found for update, redirecting to login');
+        router.replace('/login');
+        return;
       }
-    );
 
-    console.log('Update response:', response.data);
-    Alert.alert('Success', 'Profile updated successfully!');
-    router.back();
-  } catch (error) {
-    console.error('Error updating profile:', error);
-    if (axios.isAxiosError(error)) {
-      console.log('Error status:', error.response?.status);
-      console.log('Error data:', error.response?.data);
-    }
-    Alert.alert('Error', 'Failed to update profile. Please try again.');
-  } finally {
-    setIsLoading(false);
-  }
-};
-
-const handleChangePassword = async () => {
-  if (!validatePassword()) return;
-
-  setIsLoading(true);
-  try {
-    const token = await AsyncStorage.getItem('token');
-    console.log('Token for update:', token ? 'Token exists' : 'No token found');
-
-    if (!token) {
-      console.log('No token found for update, redirecting to login');
-      router.replace('/login');
-      return;
-    }
-
-    // Get user info including _id
-    const meResponse = await axios.get('http://localhost:5000/users/me', {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    const user = meResponse.data;
-    const clientId = user._id;
-    console.log('Client ID:', clientId);
-
-    if (!clientId) {
-      Alert.alert('Erreur', 'Utilisateur introuvable.');
-      return;
-    }
-
-    // Prepare payload with old and new password
-    const payload = {
-      oldPassword: passwordData.oldPassword,
-      newPassword: passwordData.newPassword,
-    };
-    
-    console.log('Sending update data:', payload);
-
-    const response = await axios.put(
-      `http://localhost:5000/users/updatepassword/${clientId}`,
-      payload,
-      {
+      // Get user info including _id
+      const meResponse = await axios.get('http://localhost:5000/users/me', {
         headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const user = meResponse.data;
+      const clientId = user._id;
+      console.log('Client ID:', clientId);
+
+      if (!clientId) {
+        Alert.alert('Error', 'User ID not found.');
+        return;
       }
-    );
 
-    console.log('Update response:', response.data);
-    Alert.alert('Succès', 'Mot de passe mis à jour avec succès !');
-    router.back();
-  } catch (error) {
-    console.error('Error updating profile:', error);
-    if (axios.isAxiosError(error)) {
-      const status = error.response?.status;
-      const message = error.response?.data?.message;
+      const updateData = {
+        prenom: profileData.firstName,
+        nom: profileData.lastName,
+        numero: profileData.phone,
+        location: profileData.location,
+        genre: profileData.genre
+      };
 
-      console.log('Error status:', status);
-      console.log('Error data:', message);
+      console.log('Sending update data:', updateData);
 
-      if (status === 401 && message === 'Mot de passe actuel incorrect.') {
-        Alert.alert('Erreur', 'Le mot de passe actuel est incorrect.');
+      const response = await axios.put(
+        `http://localhost:5000/users/clients/${clientId}`,
+        updateData,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      console.log('Update response:', response.data);
+      Alert.alert('Success', 'Profile updated successfully!');
+      router.push('/(tabs)/profile');
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      if (axios.isAxiosError(error)) {
+        console.log('Error status:', error.response?.status);
+        console.log('Error data:', error.response?.data);
+      }
+      Alert.alert('Error', 'Failed to update profile. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (!validatePassword()) return;
+
+    setPasswordLoading(true);
+    try {
+      const token = await AsyncStorage.getItem('token');
+      console.log('Token for update:', token ? 'Token exists' : 'No token found');
+
+      if (!token) {
+        console.log('No token found for update, redirecting to login');
+        router.replace('/login');
+        return;
+      }
+
+      // Get user info including _id
+      const meResponse = await axios.get('http://localhost:5000/users/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const user = meResponse.data;
+      const clientId = user._id;
+      console.log('Client ID:', clientId);
+
+      if (!clientId) {
+        Alert.alert('Erreur', 'Utilisateur introuvable.');
+        return;
+      }
+
+      // Prepare payload with old and new password
+      const payload = {
+        oldPassword: passwordData.oldPassword,
+        newPassword: passwordData.newPassword,
+      };
+      
+      console.log('Sending update data:', payload);
+
+      const response = await axios.put(
+        `http://localhost:5000/users/updatepassword/${clientId}`,
+        payload,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      console.log('Update response:', response.data);
+      setShowPasswordModal(false);
+      setPasswordData({
+        oldPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      });
+      setPasswordErrors({});
+      Alert.alert('Succès', 'Mot de passe mis à jour avec succès !');
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      if (axios.isAxiosError(error)) {
+        const status = error.response?.status;
+        const message = error.response?.data?.message;
+
+        console.log('Error status:', status);
+        console.log('Error data:', message);
+
+        if (status === 401 && message === 'Mot de passe actuel incorrect.') {
+          Alert.alert('Erreur', 'Le mot de passe actuel est incorrect.');
+        } else {
+          Alert.alert('Erreur', message || 'Échec de la mise à jour du mot de passe.');
+        }
       } else {
-        Alert.alert('Erreur', message || 'Échec de la mise à jour du mot de passe.');
+        Alert.alert('Erreur', 'Une erreur est survenue.');
       }
-    } else {
-      Alert.alert('Erreur', 'Une erreur est survenue.');
+    } finally {
+      setPasswordLoading(false);
     }
-  } finally {
-    setIsLoading(false);
-  }
-};
-
-
+  };
 
   const updateProfileData = (field: keyof ProfileData, value: string) => {
     setProfileData(prev => ({ ...prev, [field]: value }));
@@ -323,19 +369,19 @@ const handleChangePassword = async () => {
     }
   };
 
- const updatePasswordData = (field: keyof PasswordData, value: string) => {
-  setPasswordData(prev => ({ ...prev, [field]: value }));
-  if (errors[field]) {
-    setErrors(prev => ({ ...prev, [field]: undefined }));
-  }
-};
+  const updatePasswordData = (field: keyof PasswordData, value: string) => {
+    setPasswordData(prev => ({ ...prev, [field]: value }));
+    if (passwordErrors[field]) {
+      setPasswordErrors(prev => ({ ...prev, [field]: undefined }));
+    }
+  };
 
-  const togglePasswordVisibility = (field: keyof PasswordData) => {
+  const togglePasswordVisibility = (field: keyof typeof showPasswords) => {
     setShowPasswords(prev => ({ ...prev, [field]: !prev[field] }));
   };
 
   const getPasswordStrength = () => {
-    const password = passwordData.newPassword;
+    const password = passwordData.newPassword || '';
     if (password.length === 0) return { strength: 0, text: '', color: '#E5E5EA' };
     if (password.length < 6) return { strength: 1, text: 'Weak', color: colors.error };
     if (password.length < 8) return { strength: 2, text: 'Fair', color: colors.secondary };
@@ -347,41 +393,156 @@ const handleChangePassword = async () => {
 
   const passwordStrength = getPasswordStrength();
 
+  const handleAvatarSelect = async (selectedAvatar: string) => {
+    // Optimistically update UI
+    setProfileData(prev => ({ ...prev, avatar: selectedAvatar }));
+    setShowAvatarModal(false);
+
+    try {
+      setIsLoading(true);
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        router.replace('/login');
+        return;
+      }
+      
+      const meResponse = await axios.get('http://localhost:5000/users/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const clientId = meResponse.data._id;
+
+      if (!clientId) {
+        Alert.alert('Error', 'User ID not found.');
+        // Revert UI change
+        await fetchProfile(); 
+        return;
+      }
+
+      await axios.put(
+        `http://localhost:5000/users/clients/${clientId}`,
+        { avatar: selectedAvatar },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      Alert.alert('Success', 'Avatar updated successfully.');
+    } catch (error) {
+      console.error('Error updating avatar:', error);
+      Alert.alert('Error', 'Failed to update avatar. Please try again.');
+      // Revert UI change by refetching profile
+      fetchProfile();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleImagePicker = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        await uploadCustomImage(result.assets[0]);
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Error', 'Failed to select image. Please try again.');
+    }
+  };
+
+  const uploadCustomImage = async (imageAsset: any) => {
+    setUploadingImage(true);
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        router.replace('/login');
+        return;
+      }
+
+      const formData = new FormData();
+      
+      if (Platform.OS === 'web') {
+        const response = await fetch(imageAsset.uri);
+        const blob = await response.blob();
+        formData.append('avatar', blob, imageAsset.fileName || `avatar_${Date.now()}.jpg`);
+      } else {
+        formData.append('avatar', {
+          uri: imageAsset.uri,
+          type: imageAsset.mimeType || 'image/jpeg',
+          name: imageAsset.fileName || `avatar_${Date.now()}.jpg`,
+        } as any);
+      }
+
+      const response = await axios.post(
+        'http://localhost:5000/users/upload-avatar',
+        formData,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
+
+      const avatarPath = response.data.avatar;
+      
+      // Update local state
+      setProfileData(prev => ({ ...prev, avatar: avatarPath }));
+      setShowAvatarModal(false);
+      
+      Alert.alert('Success', 'Custom avatar uploaded successfully!');
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      Alert.alert('Error', 'Failed to upload image. Please try again.');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity 
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={() => router.push('/(tabs)/profile')}
         >
           <ArrowLeft size={24} color={colors.primary} strokeWidth={2} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Edit Profile</Text>
-        <View style={styles.placeholder} />
+        <View style={{width: 24}} />
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Profile Picture Section */}
         <View style={styles.profileSection}>
           <View style={styles.avatarContainer}>
             <Image 
-              source={{ uri: 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=400' }} 
-              style={styles.avatar} 
+              source={{ 
+                uri: profileData.avatar
+                  ? `http://localhost:5000${profileData.avatar}`
+                  : 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=400'
+              }} 
+              style={styles.avatar}
             />
-            <TouchableOpacity style={styles.cameraButton}>
+            <TouchableOpacity 
+              style={styles.cameraButton}
+              onPress={() => setShowAvatarModal(true)}
+            >
               <Camera size={16} color="white" strokeWidth={2} />
             </TouchableOpacity>
           </View>
-          <Text style={styles.changePhotoText}>Tap to change photo</Text>
         </View>
 
         {/* Profile Form */}
-        <View style={styles.formContainer}>
+        <View style={styles.form}>
           <Text style={styles.sectionTitle}>Personal Information</Text>
           
           {/* First Name */}
-          <View style={styles.inputContainer}>
+          <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>First Name</Text>
             <View style={[styles.inputWrapper, errors.firstName && styles.inputError]}>
               <User size={20} color="#8E8E93" strokeWidth={2} />
@@ -397,7 +558,7 @@ const handleChangePassword = async () => {
           </View>
 
           {/* Last Name */}
-          <View style={styles.inputContainer}>
+          <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Last Name</Text>
             <View style={[styles.inputWrapper, errors.lastName && styles.inputError]}>
               <User size={20} color="#8E8E93" strokeWidth={2} />
@@ -413,7 +574,7 @@ const handleChangePassword = async () => {
           </View>
 
           {/* Phone Number */}
-          <View style={styles.inputContainer}>
+          <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Phone Number</Text>
             <View style={[styles.inputWrapper, errors.phone && styles.inputError]}>
               <Phone size={20} color="#8E8E93" strokeWidth={2} />
@@ -430,7 +591,7 @@ const handleChangePassword = async () => {
           </View>
 
           {/* Location */}
-          <View style={styles.inputContainer}>
+          <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Location</Text>
             <View style={[styles.inputWrapper, errors.location && styles.inputError]}>
               <MapPin size={20} color="#8E8E93" strokeWidth={2} />
@@ -444,10 +605,50 @@ const handleChangePassword = async () => {
             </View>
             {errors.location ? <Text style={styles.errorText}>{errors.location}</Text> : null}
           </View>
+
+          {/* Gender Selection */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Gender</Text>
+            <View style={styles.genderContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.genderButton,
+                  profileData.genre === 'homme' && styles.genderButtonSelected,
+                ]}
+                onPress={() => updateProfileData('genre', 'homme')}
+              >
+                <Text
+                  style={[
+                    styles.genderButtonText,
+                    profileData.genre === 'homme' && styles.genderButtonTextSelected,
+                  ]}
+                >
+                  Homme
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.genderButton,
+                  profileData.genre === 'femme' && styles.genderButtonSelected,
+                ]}
+                onPress={() => updateProfileData('genre', 'femme')}
+              >
+                <Text
+                  style={[
+                    styles.genderButtonText,
+                    profileData.genre === 'femme' && styles.genderButtonTextSelected,
+                  ]}
+                >
+                  Femme
+                </Text>
+              </TouchableOpacity>
+            </View>
+            {errors.genre ? <Text style={styles.errorText}>{errors.genre}</Text> : null}
+          </View>
         </View>
 
         {/* Security Section */}
-        <View style={styles.formContainer}>
+        <View style={styles.form}>
           <Text style={styles.sectionTitle}>Security</Text>
           
           <TouchableOpacity 
@@ -513,7 +714,7 @@ const handleChangePassword = async () => {
             </Text>
 
             {/* Current Password */}
-            <View style={styles.inputContainer}>
+            <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Current Password</Text>
               <View style={[styles.inputWrapper, passwordErrors.oldPassword && styles.inputError]}>
                 <Lock size={20} color="#8E8E93" strokeWidth={2} />
@@ -540,7 +741,7 @@ const handleChangePassword = async () => {
             </View>
 
             {/* New Password */}
-            <View style={styles.inputContainer}>
+            <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>New Password</Text>
               <View style={[styles.inputWrapper, passwordErrors.newPassword && styles.inputError]}>
                 <Lock size={20} color="#8E8E93" strokeWidth={2} />
@@ -566,7 +767,7 @@ const handleChangePassword = async () => {
               {passwordErrors.newPassword ? <Text style={styles.errorText}>{passwordErrors.newPassword}</Text> : null}
               
               {/* Password Strength Indicator */}
-              {passwordData.newPassword.length > 0 && (
+              {passwordData.newPassword && passwordData.newPassword.length > 0 && (
                 <View style={styles.strengthContainer}>
                   <View style={styles.strengthBar}>
                     {[1, 2, 3, 4].map((level) => (
@@ -591,7 +792,7 @@ const handleChangePassword = async () => {
             </View>
 
             {/* Confirm New Password */}
-            <View style={styles.inputContainer}>
+            <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Confirm New Password</Text>
               <View style={[styles.inputWrapper, passwordErrors.confirmPassword && styles.inputError]}>
                 <Lock size={20} color="#8E8E93" strokeWidth={2} />
@@ -634,6 +835,116 @@ const handleChangePassword = async () => {
           </ScrollView>
         </SafeAreaView>
       </Modal>
+
+      {/* Enhanced Avatar Selection Modal */}
+      <Modal
+        visible={showAvatarModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowAvatarModal(false)}
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity 
+              onPress={() => setShowAvatarModal(false)}
+              style={styles.modalCloseButton}
+            >
+              <Text style={styles.modalCloseText}>Cancel</Text>
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Choose Avatar</Text>
+            <View style={styles.placeholder} />
+          </View>
+          
+          <ScrollView contentContainerStyle={styles.avatarModalContent}>
+            {/* Default Avatars Section */}
+            <View style={styles.avatarSection}>
+              <View style={styles.avatarSectionHeader}>
+                <ImageIcon size={24} color={colors.primary} strokeWidth={2} />
+                <Text style={styles.avatarSectionTitle}>Select an existing avatar</Text>
+              </View>
+              
+              <View style={styles.avatarGrid}>
+                {availableAvatars.map((avatarUri) => (
+                  <TouchableOpacity 
+                    key={avatarUri}
+                    style={[
+                      styles.avatarGridItem,
+                      profileData.avatar === avatarUri && styles.selectedAvatarItem
+                    ]}
+                    onPress={() => handleAvatarSelect(avatarUri)}
+                  >
+                    <Image 
+                      source={{ uri: `http://localhost:5000${avatarUri}` }} 
+                      style={styles.avatarGridImage}
+                    />
+                    {profileData.avatar === avatarUri && (
+                      <View style={styles.selectedOverlay}>
+                        <View style={styles.checkmark}>
+                          <Text style={styles.checkmarkText}>✓</Text>
+                        </View>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Divider */}
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            {/* Custom Image Upload Section */}
+            <View style={styles.avatarSection}>
+              <View style={styles.avatarSectionHeader}>
+                <Upload size={24} color={colors.accent} strokeWidth={2} />
+                <Text style={styles.avatarSectionTitle}>Select an image from your library</Text>
+              </View>
+              
+              <TouchableOpacity 
+                style={[styles.uploadButton, uploadingImage && styles.uploadButtonDisabled]}
+                onPress={handleImagePicker}
+                disabled={uploadingImage}
+              >
+                <View style={styles.uploadButtonContent}>
+                  {uploadingImage ? (
+                    <>
+                      <View style={styles.uploadSpinner} />
+                      <Text style={styles.uploadButtonText}>Uploading...</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Camera size={32} color={colors.accent} strokeWidth={2} />
+                      <Text style={styles.uploadButtonText}>Choose from Gallery</Text>
+                      <Text style={styles.uploadButtonSubtext}>Upload a custom profile picture</Text>
+                    </>
+                  )}
+                </View>
+              </TouchableOpacity>
+
+              {/* Current Custom Avatar Preview */}
+              {profileData.avatar && !availableAvatars.includes(profileData.avatar) && (
+                <View style={styles.currentAvatarPreview}>
+                  <Text style={styles.currentAvatarLabel}>Current custom avatar:</Text>
+                  <View style={styles.currentAvatarContainer}>
+                    <Image 
+                      source={{ uri: `http://localhost:5000${profileData.avatar}` }} 
+                      style={styles.currentAvatarImage}
+                    />
+                    <View style={styles.selectedOverlay}>
+                      <View style={styles.checkmark}>
+                        <Text style={styles.checkmarkText}>✓</Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+              )}
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -664,17 +975,15 @@ const styles = StyleSheet.create({
   placeholder: {
     width: 40,
   },
-  content: {
-    flex: 1,
-    paddingHorizontal: 20,
+  scrollContent: {
+    paddingBottom: 20,
   },
   profileSection: {
     alignItems: 'center',
-    paddingVertical: 32,
+    marginVertical: 20,
   },
   avatarContainer: {
     position: 'relative',
-    marginBottom: 12,
   },
   avatar: {
     width: 100,
@@ -694,21 +1003,8 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: 'white',
   },
-  changePhotoText: {
-    fontSize: 14,
-    fontFamily: 'Inter-Medium',
-    color: colors.accent,
-  },
-  formContainer: {
-    backgroundColor: 'white',
-    borderRadius: 16,
+  form: {
     padding: 20,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
   },
   sectionTitle: {
     fontSize: 18,
@@ -716,7 +1012,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginBottom: 20,
   },
-  inputContainer: {
+  inputGroup: {
     marginBottom: 20,
   },
   inputLabel: {
@@ -728,7 +1024,7 @@ const styles = StyleSheet.create({
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.background,
+    backgroundColor: 'white',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
@@ -758,7 +1054,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: colors.background,
+    backgroundColor: 'white',
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
@@ -796,6 +1092,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    marginHorizontal: 20,
     marginBottom: 32,
   },
   saveButtonDisabled: {
@@ -896,5 +1193,165 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Bold',
     color: 'white',
     marginLeft: 8,
+  },
+  genderContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  genderButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    alignItems: 'center',
+    marginHorizontal: 4,
+    backgroundColor: 'white',
+  },
+  genderButtonSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  genderButtonText: {
+    color: '#4B5563',
+    fontFamily: 'Inter-SemiBold',
+  },
+  genderButtonTextSelected: {
+    color: '#FFFFFF',
+  },
+  label: {
+    fontSize: 14,
+    fontFamily: 'Inter-SemiBold',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  avatarModalContent: {
+    padding: 20,
+  },
+  avatarSection: {
+    marginBottom: 30,
+  },
+  avatarSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  avatarSectionTitle: {
+    fontSize: 18,
+    fontFamily: 'Inter-SemiBold',
+    color: colors.text,
+    marginLeft: 12,
+  },
+  avatarGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  avatarGridItem: {
+    width: '30%',
+    aspectRatio: 1,
+    marginBottom: 15,
+    position: 'relative',
+  },
+  selectedAvatarItem: {
+    transform: [{ scale: 0.95 }],
+  },
+  avatarGridImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 50,
+  },
+  selectedOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(42, 77, 105, 0.8)',
+    borderRadius: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkmark: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: colors.success,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkmarkText: {
+    color: 'white',
+    fontSize: 16,
+    fontFamily: 'Inter-Bold',
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#E5E5EA',
+  },
+  dividerText: {
+    fontSize: 14,
+    fontFamily: 'Inter-Regular',
+    color: '#8E8E93',
+    marginHorizontal: 16,
+  },
+  uploadButton: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 24,
+    borderWidth: 2,
+    borderColor: colors.accent,
+    borderStyle: 'dashed',
+  },
+  uploadButtonDisabled: {
+    opacity: 0.7,
+  },
+  uploadButtonContent: {
+    alignItems: 'center',
+  },
+  uploadButtonText: {
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
+    color: colors.accent,
+    marginTop: 12,
+  },
+  uploadButtonSubtext: {
+    fontSize: 14,
+    fontFamily: 'Inter-Regular',
+    color: '#8E8E93',
+    marginTop: 4,
+  },
+  uploadSpinner: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 3,
+    borderColor: colors.accent + '30',
+    borderTopColor: colors.accent,
+  },
+  currentAvatarPreview: {
+    marginTop: 20,
+    alignItems: 'center',
+  },
+  currentAvatarLabel: {
+    fontSize: 14,
+    fontFamily: 'Inter-Medium',
+    color: '#8E8E93',
+    marginBottom: 12,
+  },
+  currentAvatarContainer: {
+    position: 'relative',
+  },
+  currentAvatarImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
   },
 });
