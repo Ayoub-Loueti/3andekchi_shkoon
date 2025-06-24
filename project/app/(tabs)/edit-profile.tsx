@@ -15,7 +15,7 @@ import {
   Platform,
 } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowLeft, Camera, User, Phone, MapPin, Lock, Eye, EyeOff, Save, Key, Upload, Image as ImageIcon } from 'lucide-react-native';
+import { ArrowLeft, Camera, User, Phone, MapPin, Lock, Eye, EyeOff, Save, Key, Upload, Image as ImageIcon, CheckCircle } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 
 const colors = {
@@ -608,39 +608,51 @@ export default function EditProfileScreen() {
 
           {/* Gender Selection */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Gender</Text>
+            <Text style={styles.inputLabel}>Gender</Text>
             <View style={styles.genderContainer}>
               <TouchableOpacity
                 style={[
-                  styles.genderButton,
-                  profileData.genre === 'homme' && styles.genderButtonSelected,
+                  styles.genderOption,
+                  profileData.genre === 'homme' && styles.genderOptionSelected,
                 ]}
                 onPress={() => updateProfileData('genre', 'homme')}
               >
+                <User size={32} color={profileData.genre === 'homme' ? colors.primary : '#8E8E93'} />
                 <Text
                   style={[
-                    styles.genderButtonText,
-                    profileData.genre === 'homme' && styles.genderButtonTextSelected,
+                    styles.genderOptionText,
+                    profileData.genre === 'homme' && styles.genderOptionTextSelected,
                   ]}
                 >
                   Homme
                 </Text>
+                {profileData.genre === 'homme' && (
+                  <View style={styles.checkmarkIcon}>
+                    <CheckCircle size={20} color="white" />
+                  </View>
+                )}
               </TouchableOpacity>
               <TouchableOpacity
                 style={[
-                  styles.genderButton,
-                  profileData.genre === 'femme' && styles.genderButtonSelected,
+                  styles.genderOption,
+                  profileData.genre === 'femme' && styles.genderOptionSelected,
                 ]}
                 onPress={() => updateProfileData('genre', 'femme')}
               >
+                <User size={32} color={profileData.genre === 'femme' ? colors.primary : '#8E8E93'} />
                 <Text
                   style={[
-                    styles.genderButtonText,
-                    profileData.genre === 'femme' && styles.genderButtonTextSelected,
+                    styles.genderOptionText,
+                    profileData.genre === 'femme' && styles.genderOptionTextSelected,
                   ]}
                 >
                   Femme
                 </Text>
+                {profileData.genre === 'femme' && (
+                  <View style={styles.checkmarkIcon}>
+                    <CheckCircle size={20} color="white" />
+                  </View>
+                )}
               </TouchableOpacity>
             </View>
             {errors.genre ? <Text style={styles.errorText}>{errors.genre}</Text> : null}
@@ -1198,27 +1210,39 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: 8,
+    gap: 16,
   },
-  genderButton: {
+  genderOption: {
     flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
+    paddingVertical: 16,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#E5E5EA',
     alignItems: 'center',
-    marginHorizontal: 4,
+    justifyContent: 'center',
     backgroundColor: 'white',
+    position: 'relative',
   },
-  genderButtonSelected: {
-    backgroundColor: colors.primary,
+  genderOptionSelected: {
+    backgroundColor: colors.primary + '20',
     borderColor: colors.primary,
   },
-  genderButtonText: {
+  genderOptionText: {
+    marginTop: 8,
     color: '#4B5563',
     fontFamily: 'Inter-SemiBold',
+    fontSize: 16,
   },
-  genderButtonTextSelected: {
-    color: '#FFFFFF',
+  genderOptionTextSelected: {
+    color: colors.primary,
+  },
+  checkmarkIcon: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    padding: 2,
   },
   label: {
     fontSize: 14,
