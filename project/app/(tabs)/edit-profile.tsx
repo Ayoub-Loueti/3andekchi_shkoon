@@ -155,8 +155,8 @@ export default function EditProfileScreen() {
     const newErrors = {};
     let isValid = true;
 
-    if (!passwordData.currentPassword) {
-      newErrors.currentPassword = 'Current password is required';
+    if (!passwordData.oldPassword) {
+      newErrors.oldPassword = 'Current password is required';
       isValid = false;
     }
 
@@ -176,7 +176,7 @@ export default function EditProfileScreen() {
       isValid = false;
     }
 
-    if (passwordData.currentPassword === passwordData.newPassword) {
+    if (passwordData.oldPassword === passwordData.newPassword) {
       newErrors.newPassword = 'New password must be different from current password';
       isValid = false;
     }
@@ -515,7 +515,7 @@ const handleChangePassword = async () => {
             {/* Current Password */}
             <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>Current Password</Text>
-              <View style={[styles.inputWrapper, passwordErrors.currentPassword && styles.inputError]}>
+              <View style={[styles.inputWrapper, passwordErrors.oldPassword && styles.inputError]}>
                 <Lock size={20} color="#8E8E93" strokeWidth={2} />
                 <TextInput
                   style={styles.textInput}
@@ -536,7 +536,7 @@ const handleChangePassword = async () => {
                   )}
                 </TouchableOpacity>
               </View>
-              {passwordErrors.currentPassword ? <Text style={styles.errorText}>{passwordErrors.currentPassword}</Text> : null}
+              {passwordErrors.oldPassword ? <Text style={styles.errorText}>{passwordErrors.oldPassword}</Text> : null}
             </View>
 
             {/* New Password */}
