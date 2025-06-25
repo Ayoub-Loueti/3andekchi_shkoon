@@ -84,7 +84,13 @@ export default function LoginScreen() {
       };
       await AsyncStorage.setItem('user', JSON.stringify(userInfo));
 
-      router.replace('/(tabs)');
+      setIsLoading(false);
+      
+      if (data.role === 'admin') {
+        router.replace('/(admin)/users');
+      } else {
+        router.replace('/(tabs)');
+      }
     } catch (error) {
       console.error('Error sending ID token to backend:', error);
       Alert.alert('Error', 'Could not complete Google login. Please try again.');
@@ -148,7 +154,12 @@ export default function LoginScreen() {
       await AsyncStorage.setItem('isRemember', rememberMe ? '1' : '0');
 
       setIsLoading(false);
-      router.replace('/(tabs)');
+      
+      if (data.role === 'admin') {
+        router.replace('/(admin)/users');
+      } else {
+        router.replace('/(tabs)');
+      }
     } catch (error) {
       setIsLoading(false);
       Alert.alert('Error', 'Something went wrong. Please try again.');

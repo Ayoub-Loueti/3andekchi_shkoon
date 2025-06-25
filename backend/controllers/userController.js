@@ -22,6 +22,7 @@ exports.loginUser = async (req, res) => {
       prenom: client.prenom,
       mail: client.mail,
       token: token,
+      role: client.role,
     });
   } else {
     res.status(400).json({ message: 'client existe pas' });
