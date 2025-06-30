@@ -267,29 +267,72 @@ exports.resendForgotPasswordEmail = async (req, res) => {
   }
 };
 
+const shapeClientData = (client) => ({
+  _id: client._id,
+  nom: client.nom,
+  prenom: client.prenom,
+  mail: client.mail,
+  numero: client.numero,
+  genre: client.genre,
+  rate: client.rate,
+  location: client.location,
+  isBlocked: client.isBlocked,
+  isArchived: client.isArchived,
+  avatar: client.avatar,
+  isGoogleUser: client.isGoogleUser,
+  role: client.role,
+  createdAt: client.createdAt,
+  updatedAt: client.updatedAt,
+});
+
 exports.getClients = async (req, res) => {
   try {
-    const clients = await Utilisateur.find({ isArchived: false }); // 👈 Ne récupérer que les non archivés
+    const clients = await Utilisateur.find({ isArchived: false, isBlocked: false, role: 'client' }); // 👈 Only non-archived, non-blocked clients with role client
 
     if (!clients || clients.length === 0) {
       return res.status(404).json({ message: 'Aucun client trouvé.' });
     }
 
-    const clientList = clients.map(client => ({
-      _id: client._id,
-      nom: client.nom,
-      prenom: client.prenom,
-      mail: client.mail,
-      numero: client.numero,
-      rate: client.rate,
-      isBlocked: client.isBlocked
-    }));
+    const clientList = clients.map(shapeClientData);
 
     res.status(200).json(clientList);
   } catch (error) {
     res.status(500).json({ message: 'Erreur serveur.' });
   }
 };
+
+exports.getBlockedClients = async (req, res) => {
+  try {
+    const clients = await Utilisateur.find({ isBlocked: true, isArchived: false, role: 'client' });
+
+    if (!clients || clients.length === 0) {
+      return res.status(404).json({ message: 'Aucun client bloqué trouvé.' });
+    }
+
+    const clientList = clients.map(shapeClientData);
+
+    res.status(200).json(clientList);
+  } catch (error) {
+    res.status(500).json({ message: 'Erreur serveur.' });
+  }
+};
+
+exports.getArchivedClients = async (req, res) => {
+  try {
+    const clients = await Utilisateur.find({ isArchived: true, role: 'client' });
+
+    if (!clients || clients.length === 0) {
+      return res.status(404).json({ message: 'Aucun client archivé trouvé.' });
+    }
+
+    const clientList = clients.map(shapeClientData);
+
+    res.status(200).json(clientList);
+  } catch (error) {
+    res.status(500).json({ message: 'Erreur serveur.' });
+  }
+};
+
 exports.archiveClient = async (req, res) => {
   try {
     const client = await Utilisateur.findById(req.params.id);
@@ -464,6 +507,22 @@ exports.updateAvatar = async (req, res) => {
   } catch (error) {
     console.error('Error in updateAvatar:', error);
     res.status(500).json({ message: 'Server error while updating avatar.' });
+  }
+};
+
+exports.getAllClients = async (req, res) => {
+  try {
+    const clients = await Utilisateur.find({ role: 'client' });
+
+    if (!clients || clients.length === 0) {
+      return res.status(404).json({ message: 'Aucun client trouvé.' });
+    }
+
+    const clientList = clients.map(shapeClientData);
+
+    res.status(200).json(clientList);
+  } catch (error) {
+    res.status(500).json({ message: 'Erreur serveur.' });
   }
 };
 

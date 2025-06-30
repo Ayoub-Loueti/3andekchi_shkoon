@@ -21,10 +21,14 @@ router.post('/resend-forgot-password-email/:mail',utilisateurController.resendFo
 // router.post('/google-login', googleAuthController.googleLogin); // Removed
 
 router.get('/clients', utilisateurController.getClients);
+router.get('/clients/blocked', utilisateurController.getBlockedClients);
+router.get('/clients/archived', utilisateurController.getArchivedClients);
+router.get('/clients/all', utilisateurController.getAllClients);
 router.put('/clients/:id/block', utilisateurController.blockClient);
 router.put('/clients/:id/unblock', utilisateurController.unblockClient);
 router.put('/clients/:id/archive', utilisateurController.archiveClient);
 router.put('/clients/:id/unarchive', utilisateurController.unarchiveClient);
+
 router.put('/clients/:id', utilisateurController.updateClient);
 router.put('/updatepassword/:id', utilisateurController.updatePassword);
 

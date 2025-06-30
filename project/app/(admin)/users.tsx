@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -24,135 +24,165 @@ const colors = {
   warning: '#FF9800',
 };
 
-const mockUsers = [
-  {
-    id: 1,
-    firstName: 'Sarah',
-    lastName: 'Ben Ali',
-    email: 'sarah.benali@email.com',
-    phone: '+216 12 345 678',
-    location: 'Tunis, La Marsa',
-    genre: 'femme',
-    avatar: 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=400',
-    rating: 4.8,
-    joinedDate: '2024-01-15',
-    status: 'active',
-    jobsCompleted: 23,
-    totalEarnings: 1250,
-  },
-  {
-    id: 2,
-    firstName: 'Ahmed',
-    lastName: 'Trabelsi',
-    email: 'ahmed.trabelsi@email.com',
-    phone: '+216 98 765 432',
-    location: 'Sfax, Centre Ville',
-    genre: 'homme',
-    avatar: 'https://images.pexels.com/photos/2379004/pexels-photo-2379004.jpeg?auto=compress&cs=tinysrgb&w=400',
-    rating: 4.6,
-    joinedDate: '2024-02-20',
-    status: 'blocked',
-    jobsCompleted: 15,
-    totalEarnings: 890,
-  },
-  {
-    id: 3,
-    firstName: 'Fatma',
-    lastName: 'Mansouri',
-    email: 'fatma.mansouri@email.com',
-    phone: '+216 55 123 456',
-    location: 'Sousse, Kantaoui',
-    genre: 'femme',
-    avatar: 'https://images.pexels.com/photos/1181686/pexels-photo-1181686.jpeg?auto=compress&cs=tinysrgb&w=400',
-    rating: 4.9,
-    joinedDate: '2024-03-10',
-    status: 'archived',
-    jobsCompleted: 31,
-    totalEarnings: 1680,
-  },
-  {
-    id: 4,
-    firstName: 'Mohamed',
-    lastName: 'Khelifi',
-    email: 'mohamed.khelifi@email.com',
-    phone: '+216 77 888 999',
-    location: 'Monastir, Centre',
-    genre: 'homme',
-    avatar: 'https://images.pexels.com/photos/1222271/pexels-photo-1222271.jpeg?auto=compress&cs=tinysrgb&w=400',
-    rating: 4.7,
-    joinedDate: '2024-01-28',
-    status: 'active',
-    jobsCompleted: 18,
-    totalEarnings: 975,
-  },
-];
+type User = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  location: string;
+  genre: string;
+  avatar: string;
+  rating: number;
+  joinedDate: string;
+  status: 'active' | 'blocked' | 'archived';
+  jobsCompleted: number;
+  totalEarnings: number;
+};
 
-const filterOptions = [
-  { id: 'all', label: 'All Users', count: 4 },
-  { id: 'active', label: 'Active', count: 2 },
-  { id: 'blocked', label: 'Blocked', count: 1 },
-  { id: 'archived', label: 'Archived', count: 1 },
-];
+const BASE_URL = 'http://localhost:5000';
+
+function mapUserFromApi(user: any): User {
+  // Map backend user to frontend user shape
+  return {
+    id: user._id,
+    firstName: user.nom || '',
+    lastName: user.prenom || '',
+    email: user.mail || '',
+    phone: user.numero || '',
+    location: user.location || '',
+    genre: user.genre || '',
+    avatar: user.avatar || '',
+    rating: user.rate || 0,
+    joinedDate: user.createdAt ? user.createdAt.slice(0, 10) : '',
+    status: user.isArchived ? 'archived' : user.isBlocked ? 'blocked' : 'active',
+    jobsCompleted: user.jobsCompleted || 0, // keep as is, or fetch if available
+    totalEarnings: user.totalEarnings || 0, // keep as is, or fetch if available
+  };
+}
+
+type FilterOption = {
+  id: 'all' | 'active' | 'blocked' | 'archived';
+  label: string;
+  count: number;
+};
 
 export default function UsersScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('all');
-  const [selectedUser, setSelectedUser] = useState(null);
+  const [users, setUsers] = useState<User[]>([]);
+  const [allUsersForCount, setAllUsersForCount] = useState<User[]>([]);
+  const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showUserModal, setShowUserModal] = useState(false);
   const [showFilterModal, setShowFilterModal] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const filteredUsers = mockUsers.filter(user => {
-    const matchesSearch = 
-      user.firstName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.lastName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesFilter = selectedFilter === 'all' || user.status === selectedFilter;
-    
-    return matchesSearch && matchesFilter;
-  });
+  // Fetch all users for accurate counts, and the filtered list for display
+  const fetchUsers = useCallback(async (filter: string) => {
+    setLoading(true);
+    try {
+      // Fetch the master list for counts
+      const allUsersResponse = await fetch(`${BASE_URL}/users/clients/all`);
+      const allUsersData = await allUsersResponse.json();
+      if (Array.isArray(allUsersData)) {
+        setAllUsersForCount(allUsersData.map(mapUserFromApi));
+      }
 
-  const handleUserAction = (action, user) => {
+      // Fetch the specific list for display
+      let displayUrl = '';
+      switch (filter) {
+        case 'all':
+          displayUrl = `${BASE_URL}/users/clients/all`;
+          break;
+        case 'active':
+          displayUrl = `${BASE_URL}/users/clients`;
+          break;
+        case 'blocked':
+          displayUrl = `${BASE_URL}/users/clients/blocked`;
+          break;
+        case 'archived':
+          displayUrl = `${BASE_URL}/users/clients/archived`;
+          break;
+        default:
+          displayUrl = `${BASE_URL}/users/clients/all`;
+      }
+      const displayResponse = await fetch(displayUrl);
+      const displayData = await displayResponse.json();
+      if (Array.isArray(displayData)) {
+        setUsers(displayData.map(mapUserFromApi));
+      } else {
+        setUsers([]);
+      }
+    } catch (e) {
+      console.error('Failed to fetch users:', e);
+      setUsers([]);
+      setAllUsersForCount([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Fetch users from API when filter changes
+  useEffect(() => {
+    fetchUsers(selectedFilter);
+  }, [fetchUsers, selectedFilter]);
+
+  // Filter users by search
+  useEffect(() => {
+    setFilteredUsers(
+      users.filter((user: User) => {
+        const matchesSearch =
+          user.firstName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          user.lastName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          user.email.toLowerCase().includes(searchQuery.toLowerCase());
+        return matchesSearch;
+      })
+    );
+  }, [searchQuery, users]);
+
+  // Block, unblock, archive, unarchive actions
+  const handleUserAction = async (action: string, user: User) => {
+    let url = '';
+    let method = 'PUT';
+    let successMsg = '';
+    if (!user) return;
     switch (action) {
       case 'block':
-        Alert.alert(
-          'Block User',
-          `Are you sure you want to block ${user.firstName} ${user.lastName}?`,
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Block', style: 'destructive', onPress: () => {
-              // Update user status logic here
-              Alert.alert('Success', 'User has been blocked');
-              setShowUserModal(false);
-            }}
-          ]
-        );
+        url = `${BASE_URL}/users/clients/${user.id}/block`;
+        successMsg = 'User has been blocked';
         break;
       case 'unblock':
-        Alert.alert('Success', 'User has been unblocked');
-        setShowUserModal(false);
+        url = `${BASE_URL}/users/clients/${user.id}/unblock`;
+        successMsg = 'User has been unblocked';
         break;
       case 'archive':
-        Alert.alert(
-          'Archive User',
-          `Are you sure you want to archive ${user.firstName} ${user.lastName}?`,
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Archive', onPress: () => {
-              Alert.alert('Success', 'User has been archived');
-              setShowUserModal(false);
-            }}
-          ]
-        );
+        url = `${BASE_URL}/users/clients/${user.id}/archive`;
+        successMsg = 'User has been archived';
         break;
       case 'unarchive':
-        Alert.alert('Success', 'User has been unarchived');
-        setShowUserModal(false);
+        url = `${BASE_URL}/users/clients/${user.id}/unarchive`;
+        successMsg = 'User has been unarchived';
         break;
+      default:
+        return;
+    }
+    try {
+      const res = await fetch(url, { method });
+      if (res.ok) {
+        Alert.alert('Success', successMsg);
+        setShowUserModal(false);
+        // Refresh users
+        fetchUsers(selectedFilter);
+      } else {
+        Alert.alert('Error', 'Action failed');
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Action failed');
     }
   };
 
-  const getStatusColor = (status) => {
+  const getStatusColor = (status: 'active' | 'blocked' | 'archived') => {
     switch (status) {
       case 'active': return colors.success;
       case 'blocked': return colors.error;
@@ -161,7 +191,7 @@ export default function UsersScreen() {
     }
   };
 
-  const getStatusText = (status) => {
+  const getStatusText = (status: 'active' | 'blocked' | 'archived') => {
     switch (status) {
       case 'active': return 'Active';
       case 'blocked': return 'Blocked';
@@ -169,6 +199,14 @@ export default function UsersScreen() {
       default: return 'Unknown';
     }
   };
+
+  // Compute filter counts dynamically from the master list
+  const filterOptions: FilterOption[] = [
+    { id: 'all', label: 'All Users', count: allUsersForCount.length },
+    { id: 'active', label: 'Active', count: allUsersForCount.filter(u => u.status === 'active').length },
+    { id: 'blocked', label: 'Blocked', count: allUsersForCount.filter(u => u.status === 'blocked').length },
+    { id: 'archived', label: 'Archived', count: allUsersForCount.filter(u => u.status === 'archived').length },
+  ];
 
   return (
     <SafeAreaView style={styles.container}>
@@ -205,7 +243,7 @@ export default function UsersScreen() {
           showsHorizontalScrollIndicator={false}
           style={styles.filterChipsContainer}
         >
-          {filterOptions.map((filter) => (
+          {filterOptions.map((filter: FilterOption) => (
             <TouchableOpacity
               key={filter.id}
               style={[
@@ -233,9 +271,11 @@ export default function UsersScreen() {
           </Text>
         </View>
 
-        {filteredUsers.map((user) => (
-          <TouchableOpacity 
-            key={user.id} 
+        {loading ? (
+          <Text style={{ textAlign: 'center', marginTop: 20 }}>Loading...</Text>
+        ) : filteredUsers.map((user) => (
+          <TouchableOpacity
+            key={user.id}
             style={styles.userCard}
             onPress={() => {
               setSelectedUser(user);
@@ -243,19 +283,13 @@ export default function UsersScreen() {
             }}
           >
             <View style={styles.userHeader}>
-              <Image source={{ uri: user.avatar }} style={styles.userAvatar} />
+              <Image source={{ uri: user.avatar ? `${BASE_URL}${user.avatar}` : 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=400' }} style={styles.userAvatar} />
               <View style={styles.userInfo}>
                 <View style={styles.userNameRow}>
                   <Text style={styles.userName}>
                     {user.firstName} {user.lastName}
                   </Text>
-                  <View style={[styles.statusBadge, { backgroundColor: getStatusColor(user.status) + '20' }]}>
-                    <Text style={[styles.statusText, { color: getStatusColor(user.status) }]}>
-                      {getStatusText(user.status)}
-                    </Text>
-                  </View>
                 </View>
-                <Text style={styles.userEmail}>{user.email}</Text>
                 <View style={styles.userMeta}>
                   <View style={styles.metaItem}>
                     <Star size={14} color={colors.secondary} strokeWidth={2} fill={colors.secondary} />
@@ -267,14 +301,11 @@ export default function UsersScreen() {
                   </View>
                 </View>
               </View>
-              <TouchableOpacity style={styles.moreButton}>
-                <MoreVertical size={20} color="#8E8E93" strokeWidth={2} />
-              </TouchableOpacity>
             </View>
           </TouchableOpacity>
         ))}
 
-        {filteredUsers.length === 0 && (
+        {filteredUsers.length === 0 && !loading && (
           <View style={styles.emptyState}>
             <Search size={48} color="#8E8E93" strokeWidth={1.5} />
             <Text style={styles.emptyTitle}>No users found</Text>
@@ -307,7 +338,7 @@ export default function UsersScreen() {
             <ScrollView style={styles.modalContent}>
               {/* User Profile Section */}
               <View style={styles.profileSection}>
-                <Image source={{ uri: selectedUser.avatar }} style={styles.modalAvatar} />
+                <Image source={{ uri: selectedUser.avatar ? `${BASE_URL}${selectedUser.avatar}` : 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=400' }} style={styles.modalAvatar} />
                 <Text style={styles.modalUserName}>
                   {selectedUser.firstName} {selectedUser.lastName}
                 </Text>
@@ -364,14 +395,14 @@ export default function UsersScreen() {
                 
                 {selectedUser.status === 'active' && (
                   <>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       style={[styles.actionButton, styles.blockButton]}
                       onPress={() => handleUserAction('block', selectedUser)}
                     >
                       <Shield size={20} color="white" strokeWidth={2} />
                       <Text style={styles.actionButtonText}>Block User</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       style={[styles.actionButton, styles.archiveButton]}
                       onPress={() => handleUserAction('archive', selectedUser)}
                     >
@@ -380,19 +411,26 @@ export default function UsersScreen() {
                     </TouchableOpacity>
                   </>
                 )}
-
                 {selectedUser.status === 'blocked' && (
-                  <TouchableOpacity 
-                    style={[styles.actionButton, styles.unblockButton]}
-                    onPress={() => handleUserAction('unblock', selectedUser)}
-                  >
-                    <ShieldOff size={20} color="white" strokeWidth={2} />
-                    <Text style={styles.actionButtonText}>Unblock User</Text>
-                  </TouchableOpacity>
+                  <>
+                    <TouchableOpacity
+                      style={[styles.actionButton, styles.unblockButton]}
+                      onPress={() => handleUserAction('unblock', selectedUser)}
+                    >
+                      <ShieldOff size={20} color="white" strokeWidth={2} />
+                      <Text style={styles.actionButtonText}>Unblock User</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.actionButton, styles.archiveButton]}
+                      onPress={() => handleUserAction('archive', selectedUser)}
+                    >
+                      <Archive size={20} color="white" strokeWidth={2} />
+                      <Text style={styles.actionButtonText}>Archive User</Text>
+                    </TouchableOpacity>
+                  </>
                 )}
-
                 {selectedUser.status === 'archived' && (
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={[styles.actionButton, styles.unarchiveButton]}
                     onPress={() => handleUserAction('unarchive', selectedUser)}
                   >

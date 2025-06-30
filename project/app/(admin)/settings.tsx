@@ -9,6 +9,8 @@ import {
   Switch,
   Alert,
 } from 'react-native';
+import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { 
   Settings as SettingsIcon, 
   Bell, 
@@ -35,7 +37,31 @@ const colors = {
   warning: '#FF9800',
 };
 
-const settingsGroups = [
+// Define types for settings
+type SettingValue = boolean;
+interface SettingsState {
+  user_registration: SettingValue;
+  post_moderation: SettingValue;
+  auto_flagging: SettingValue;
+  email_notifications: SettingValue;
+  report_alerts: SettingValue;
+  [key: string]: SettingValue;
+}
+type SettingType = 'toggle' | 'action' | 'danger';
+interface SettingItem {
+  id: string;
+  title: string;
+  description: string;
+  type: SettingType;
+  value?: SettingValue;
+  icon: React.ComponentType<any>;
+}
+interface SettingsGroup {
+  title: string;
+  items: SettingItem[];
+}
+
+const settingsGroups: SettingsGroup[] = [
   {
     title: 'Platform Settings',
     items: [
@@ -134,7 +160,7 @@ const settingsGroups = [
 ];
 
 export default function SettingsScreen() {
-  const [settings, setSettings] = useState({
+  const [settings, setSettings] = useState<SettingsState>({
     user_registration: true,
     post_moderation: false,
     auto_flagging: true,
@@ -142,14 +168,14 @@ export default function SettingsScreen() {
     report_alerts: true,
   });
 
-  const handleToggle = (settingId) => {
+  const handleToggle = (settingId: string) => {
     setSettings(prev => ({
       ...prev,
       [settingId]: !prev[settingId]
     }));
   };
 
-  const handleAction = (actionId) => {
+  const handleAction = (actionId: string) => {
     switch (actionId) {
       case 'export_data':
         Alert.alert('Export Data', 'Data export will begin shortly. You will receive an email when complete.');
@@ -193,15 +219,20 @@ export default function SettingsScreen() {
       'Are you sure you want to sign out of the admin panel?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Sign Out', style: 'destructive', onPress: () => {
-          // Handle logout logic here
-          Alert.alert('Signed Out', 'You have been signed out successfully.');
+        { text: 'Sign Out', style: 'destructive', onPress: async () => {
+          try {
+            await AsyncStorage.clear();
+            router.replace('/(auth)/login');
+          } catch (error) {
+            console.error('Error signing out:', error);
+            Alert.alert('Error', 'Could not sign out. Please try again.');
+          }
         }}
       ]
     );
   };
 
-  const renderSettingItem = (item) => {
+  const renderSettingItem = (item: SettingItem) => {
     switch (item.type) {
       case 'toggle':
         return (
@@ -296,24 +327,11 @@ export default function SettingsScreen() {
             </View>
           ))}
 
-          {/* Logout Section */}
-          <View style={styles.settingsGroup}>
-            <Text style={styles.groupTitle}>Account</Text>
-            <View style={styles.groupCard}>
-              <TouchableOpacity style={styles.settingItem} onPress={handleLogout}>
-                <View style={styles.settingLeft}>
-                  <View style={[styles.settingIcon, { backgroundColor: colors.error + '20' }]}>
-                    <LogOut size={20} color={colors.error} strokeWidth={2} />
-                  </View>
-                  <View style={styles.settingContent}>
-                    <Text style={[styles.settingTitle, { color: colors.error }]}>Sign Out</Text>
-                    <Text style={styles.settingDescription}>Sign out of admin panel</Text>
-                  </View>
-                </View>
-                <ChevronRight size={16} color="#8E8E93" strokeWidth={2} />
-              </TouchableOpacity>
-            </View>
-          </View>
+          {/* Logout Button */}
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            <LogOut size={20} color="white" strokeWidth={2} />
+            <Text style={styles.logoutButtonText}>Sign Out</Text>
+          </TouchableOpacity>
 
           {/* App Info */}
           <View style={styles.appInfo}>
@@ -417,6 +435,27 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#F0F0F0',
     marginLeft: 64,
+  },
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.error,
+    paddingVertical: 16,
+    borderRadius: 16,
+    marginTop: 8,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  logoutButtonText: {
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
+    color: 'white',
+    marginLeft: 10,
   },
   appInfo: {
     alignItems: 'center',
